@@ -1,0 +1,44 @@
+[
+  {
+    "slug": "about",
+    "title": "About",
+    "subtitle": "What realufo.org is, why it exists, who maintains it.",
+    "legacyPath": "legacy/about.html",
+    "preserveScripts": false
+  },
+  {
+    "slug": "foia",
+    "title": "FOIA",
+    "subtitle": "Freedom of Information Act primer · jurisdictions reference.",
+    "legacyPath": "legacy/foia.html",
+    "preserveScripts": false
+  },
+  {
+    "slug": "glossary",
+    "title": "Glossary",
+    "subtitle": "UAP terminology · agencies · classification systems.",
+    "legacyPath": "legacy/glossary.html",
+    "preserveScripts": false
+  },
+  {
+    "slug": "map",
+    "title": "Map",
+    "subtitle": "Geographic case-pin viewer for the realufo.org archive.",
+    "legacyPath": "legacy/map.html",
+    "preserveScripts": true
+  },
+  {
+    "slug": "timeline",
+    "title": "Timeline",
+    "subtitle": "Chronological browser of UAP cases across the corpus.",
+    "legacyPath": "legacy/timeline.html",
+    "preserveScripts": true
+  },
+  {
+    "slug": "whatsnew",
+    "title": "What's New",
+    "subtitle": "Release log · recent additions to the archive.",
+    "legacyPath": "legacy/whatsnew.html",
+    "preserveScripts": false
+  }
+]
