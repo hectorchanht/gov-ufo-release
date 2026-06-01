@@ -30,6 +30,16 @@ import { INVARIANTS_JS } from '../scripts/invariants';
 // layout yet. [Rule 3 — auto-fix blocking issue]
 export type ArchiveSlug = 'wargov' | 'aaro' | 'nasa' | 'nara' | 'geipan' | 'uk' | 'brazil' | 'chile' | 'argentina' | 'canada' | 'italy' | 'nz' | 'peru' | 'spain' | 'uruguay';
 
+// Phase 04.1 (B-1 fix) — `pageType` discriminates the three page kinds in the
+// post-04.1 nav surface: per-archive index pages (the original concern that
+// drove the active/dormant Pagefind gate), curated stories under /stories/,
+// and informational site-pages under /about/, /foia/, etc. Stories and
+// site-pages MUST be indexed by Pagefind regardless of the archive they
+// reference, so `pageType` overrides the active/dormant logic for those
+// two values. MUST stay on ONE LINE — same `@astrojs/compiler 2.13.1`
+// constraint as `ArchiveSlug` above (multi-line `export type` mis-compiles).
+export type PageType = 'archive' | 'story' | 'site-page';
+
 interface Props {
   title: string;
   description: string;
@@ -40,6 +50,13 @@ interface Props {
   totalRecords?: number;
   /** Optional ISO date for Footer "Last updated". */
   lastUpdated?: string;
+  /**
+   * What kind of page this is. Stories + site-pages always get the Pagefind
+   * body marker on `<main>`; only `archive` pages gate on ACTIVE_ARCHIVES.
+   * Default `'archive'` for back-compat with every pre-Phase-04.1 call site
+   * (they all omit this prop and pick up the original behaviour).
+   */
+  pageType?: PageType;
 }
 
 const {
@@ -50,6 +67,7 @@ const {
   ogImage,
   totalRecords,
   lastUpdated,
+  pageType = 'archive',
 } = Astro.props;
 
 // 15-archive TONE map — verbatim from CLAUDE.md §3.1.
@@ -88,7 +106,20 @@ const rootStyle = `--caution: ${tone.caution}; --seal-gradient: ${sealGradient};
 const ACTIVE_ARCHIVES: ReadonlySet<ArchiveSlug> = new Set<ArchiveSlug>(
   ['wargov', 'aaro', 'nasa', 'nara'],
 );
-const isDormant = !ACTIVE_ARCHIVES.has(archiveSlug);
+
+// Phase 04.1 (B-1 fix) — `pageType='story' | 'site-page'` overrides the
+// active/dormant gate. Stories and site-pages are first-class indexable
+// pages on the new surface — they MUST be in the Pagefind index regardless
+// of the archive they reference (e.g. /stories/rendlesham/ references
+// `uk` which is dormant, but the story itself ships in the live nav and
+// must be searchable). Without this override, `data-pagefind-ignore` on
+// the parent `<main>` would mask any inner `data-pagefind-body` (per
+// pagefind.app/docs/indexing), making dormant-archive stories invisible
+// to search. The Plan 04-19 selective-indexing contract (default
+// `pageType='archive'` is unchanged) continues to apply to per-archive
+// index pages — only the two new page kinds are exempted.
+const forceIndexing = pageType === 'story' || pageType === 'site-page';
+const isDormant = !forceIndexing && !ACTIVE_ARCHIVES.has(archiveSlug);
 
 // Plan 04-19 — Pagefind selective indexing.
 // Per pagefind.app/docs/indexing: if ANY page in the site has
@@ -100,8 +131,11 @@ const isDormant = !ACTIVE_ARCHIVES.has(archiveSlug);
 // and are skipped at index time. Belt-and-braces: dormant Astro pages
 // retain `data-pagefind-ignore` from scope pivot 80efc70 so even if a
 // future change forgot the body-attribute logic the dormant content
-// stays out of the index.
-const isActiveForSearch = ACTIVE_ARCHIVES.has(archiveSlug);
+// stays out of the index. Phase 04.1 (B-1) extends this with the
+// `forceIndexing` clause so `/stories/{slug}/` and `/about/`,
+// `/foia/`, `/glossary/`, `/map/`, `/timeline/`, `/whatsnew/` always
+// emit the body marker regardless of the source archive.
+const isActiveForSearch = forceIndexing || ACTIVE_ARCHIVES.has(archiveSlug);
 ---
 
 <!doctype html>
