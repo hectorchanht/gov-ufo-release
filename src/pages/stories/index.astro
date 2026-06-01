@@ -1,0 +1,250 @@
+---
+// src/pages/stories/index.astro — Phase 04.1 (Plan 04.1-03 Task 3)
+// curated story index at /stories/. Lists every entry in
+// src/data/stories.json, grouped by source archive, with client-side
+// filter + sort via tiny vanilla JS (no framework, no Astro hydration).
+//
+// pageType="story" passed to RootLayout: keeps the Pagefind body marker
+// consistent across the /stories/ surface, signalling intent (this is a
+// story-surface page, not an archive page). archiveSlug="wargov" gives
+// the page the gold --caution tone — chosen as a neutral cross-archive
+// accent matching the site's brand seal.
+//
+// Mirrors src/pages/aaro/index.astro skeleton for stats-grid +
+// arch-controls-bar + arch-grid; simplified — no pagination (46
+// stories fit on one page), no lightbox (text-only cards), no tabs.
+
+import RootLayout from '../../layouts/RootLayout.astro';
+import stories from '../../data/stories.json';
+import type { ArchiveSlug } from '../../layouts/RootLayout.astro';
+import '../../styles/stories.css';
+
+interface StoryEntry {
+  slug: string;
+  title: string;
+  archive: string;
+  legacyPath: string;
+  featured: boolean;
+  order: number;
+  incidentDate: string | null;
+}
+
+// Display names mirror Footer.astro / [slug].astro SOURCE_URLS for
+// consistency. Kept inline (15-wide) so the route is self-contained
+// per the same rationale as [slug].astro.
+const ARCHIVE_DISPLAY_NAME: Record<ArchiveSlug, string> = {
+  wargov:    'War.gov / UFO',
+  aaro:      'AARO',
+  nasa:      'NASA',
+  nara:      'NARA',
+  geipan:    'GEIPAN',
+  uk:        'UK National Archives',
+  brazil:    'Brazil FAB',
+  chile:     'Chile SEFAA',
+  argentina: 'Argentina CEFAe',
+  canada:    'Canada LAC',
+  italy:     'Italy AM',
+  nz:        'NZ NZDF',
+  peru:      'Peru FAP',
+  spain:     'Spain Ejército del Aire',
+  uruguay:   'Uruguay CRIDOVNI',
+};
+
+const allStories = stories as StoryEntry[];
+
+// Featured first (order 1..8), then by archive + order for the rest.
+// Within each archive group, featured entries lead.
+const sortedStories = [...allStories].sort((a, b) => {
+  if (a.featured && !b.featured) return -1;
+  if (!a.featured && b.featured) return 1;
+  if (a.featured && b.featured) return a.order - b.order;
+  // Both non-featured: group by archive then order.
+  if (a.archive !== b.archive) return a.archive.localeCompare(b.archive);
+  return a.order - b.order;
+});
+
+const totalStories = allStories.length;
+const archivesSet = new Set(allStories.map((s) => s.archive));
+const totalArchives = archivesSet.size;
+const featuredCount = allStories.filter((s) => s.featured).length;
+
+const title = 'Stories — realufo.org';
+const description = 'Curated case narratives from official government UAP sources.';
+---
+<RootLayout
+  archiveSlug="wargov"
+  pageType="story"
+  title={title}
+  description={description}
+>
+  <section class="hero">
+    <div class="container">
+      <div class="coords">◉ realufo.org · curated case archive</div>
+      <h1 class="hero-title"><em>Stories</em></h1>
+      <p class="hero-sub">
+        Curated case narratives from official government UAP sources — each story
+        is verbatim text from its source archive, served from this local mirror.
+      </p>
+    </div>
+  </section>
+
+  <section class="archive stories-index">
+    <div class="container">
+      <div class="section-label">§ Curated · {featuredCount} featured · {totalStories} total</div>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-num">{totalStories}</div>
+          <div class="stat-label">Total stories</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{totalArchives}</div>
+          <div class="stat-label">Archives covered</div>
+        </div>
+      </div>
+
+      <div class="arch-controls-bar">
+        <input
+          type="search"
+          id="stories-search"
+          placeholder="Filter stories by title, archive…"
+          aria-label="Filter stories"
+        />
+        <select id="stories-sort" aria-label="Sort stories">
+          <option value="featured">Featured first</option>
+          <option value="title">Title (A→Z)</option>
+          <option value="title-desc">Title (Z→A)</option>
+          <option value="archive">By archive</option>
+          <option value="date-new">Incident date (newest)</option>
+          <option value="date-old">Incident date (oldest)</option>
+        </select>
+      </div>
+
+      <div class="result-count" id="stories-count" aria-live="polite">
+        {totalStories} stories
+      </div>
+
+      <div class="arch-grid" id="stories-grid">
+        {sortedStories.map((s) => (
+          <article
+            class={`arch-card story-card${s.featured ? ' featured' : ''}`}
+            data-archive={s.archive}
+            data-slug={s.slug}
+            data-title={s.title}
+            data-date={s.incidentDate ?? ''}
+            data-featured={s.featured ? '1' : '0'}
+          >
+            <a class="card-link" href={`/stories/${s.slug}/`}>
+              <div class="card-agency">{ARCHIVE_DISPLAY_NAME[s.archive as ArchiveSlug] ?? s.archive}</div>
+              <h3 class="card-title">{s.title}</h3>
+              {s.incidentDate && <div class="card-date">{s.incidentDate}</div>}
+            </a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  {/* Filter + sort runtime — small vanilla DOM, no framework. CLAUDE.md
+      §7 invariant (7) — `/` keydown focuses the search input. The
+      shared invariants.ts in RootLayout already wires the global
+      `/` focus to ANY visible search input on the page, so this script
+      only owns filter + sort logic. */}
+  <script is:inline>
+    (() => {
+      const grid = document.getElementById('stories-grid');
+      const search = document.getElementById('stories-search');
+      const sortSel = document.getElementById('stories-sort');
+      const countEl = document.getElementById('stories-count');
+      if (!grid || !search || !sortSel) return;
+
+      function getCards() {
+        return Array.from(grid.querySelectorAll('.arch-card'));
+      }
+
+      function applyFilter() {
+        const q = (search.value || '').toLowerCase().trim();
+        let visible = 0;
+        for (const c of getCards()) {
+          const title = (c.getAttribute('data-title') || '').toLowerCase();
+          const archive = (c.getAttribute('data-archive') || '').toLowerCase();
+          const show = !q || title.includes(q) || archive.includes(q);
+          c.style.display = show ? '' : 'none';
+          if (show) visible++;
+        }
+        if (countEl) {
+          countEl.textContent = visible + ' / ' + getCards().length + ' stories';
+        }
+      }
+
+      function applySort() {
+        const mode = sortSel.value;
+        const cards = getCards();
+        cards.sort((a, b) => {
+          const at = (a.getAttribute('data-title') || '').toLowerCase();
+          const bt = (b.getAttribute('data-title') || '').toLowerCase();
+          const aa = a.getAttribute('data-archive') || '';
+          const ba = b.getAttribute('data-archive') || '';
+          const ad = a.getAttribute('data-date') || '';
+          const bd = b.getAttribute('data-date') || '';
+          const af = a.getAttribute('data-featured') === '1';
+          const bf = b.getAttribute('data-featured') === '1';
+          if (mode === 'title') return at.localeCompare(bt);
+          if (mode === 'title-desc') return bt.localeCompare(at);
+          if (mode === 'archive') {
+            if (aa !== ba) return aa.localeCompare(ba);
+            return at.localeCompare(bt);
+          }
+          if (mode === 'date-new') {
+            if (!ad && !bd) return 0;
+            if (!ad) return 1;
+            if (!bd) return -1;
+            return bd.localeCompare(ad);
+          }
+          if (mode === 'date-old') {
+            if (!ad && !bd) return 0;
+            if (!ad) return 1;
+            if (!bd) return -1;
+            return ad.localeCompare(bd);
+          }
+          // featured (default)
+          if (af !== bf) return af ? -1 : 1;
+          return at.localeCompare(bt);
+        });
+        for (const c of cards) grid.appendChild(c);
+      }
+
+      // Debounce search input lightly so typing doesn't thrash.
+      let debounce;
+      search.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(applyFilter, 80);
+      });
+      sortSel.addEventListener('change', () => {
+        applySort();
+        applyFilter();
+      });
+
+      // Restore ?q= from URL (CLAUDE.md §7 invariant 8: search query
+      // persists in ?q=, restored on load, debounced-pushed on input).
+      try {
+        const params = new URLSearchParams(location.search);
+        const q = params.get('q');
+        if (q) {
+          search.value = q;
+          applyFilter();
+        }
+      } catch (_) { /* no-op if URL is malformed */ }
+
+      // Persist ?q= on input.
+      search.addEventListener('input', () => {
+        try {
+          const url = new URL(location.href);
+          if (search.value) url.searchParams.set('q', search.value);
+          else url.searchParams.delete('q');
+          history.replaceState({}, '', url);
+        } catch (_) { /* no-op */ }
+      });
+    })();
+  </script>
+</RootLayout>
