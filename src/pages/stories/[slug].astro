@@ -1,0 +1,171 @@
+---
+// src/pages/stories/[slug].astro — Phase 04.1 (Plan 04.1-03) curated
+// story-detail route. One static path per row in src/data/stories.json.
+//
+// Pipeline at build time, for each story:
+//   1. fs.readFileSync(entry.legacyPath) — repo-relative path resolved
+//      from process.cwd() at build (Astro runs from the project root).
+//   2. extractMain(raw, entry.legacyPath) — cascade selector match;
+//      throws (build fails) if no <main>/<article> anchor recognised.
+//   3. scrubChrome(bodyHtml, { preserveScripts: false }) — strips
+//      style/link/script/header/footer/scanlines/inline-style per
+//      B-4 fix (04.1-PLAN-CHECK.md §3).
+//   4. set:html the scrubbed bodyHtml into <article.story-body>.
+//
+// pageType="story" passed to RootLayout (B-1 fix from Task 0): every
+// /stories/{slug}/ — including dormant-archive slugs like
+// /stories/rendlesham/ (uk), /stories/trans-en-provence/ (geipan),
+// /stories/varginha/ (brazil), /stories/falcon-lake/ (canada) — emits
+// `data-pagefind-body` on <main> regardless of the source archive's
+// active/dormant flag.
+//
+// Tone colour inherited from RootLayout's TONE map keyed by the entry's
+// `archive` field (CLAUDE.md §3.1).
+//
+// CLAUDE.md §9 content rule enforced: the extracted body HTML is
+// VERBATIM official text (paragraphs, headings, lists, images, links)
+// — only chrome is removed. No paraphrase, no filler.
+
+import RootLayout from '../../layouts/RootLayout.astro';
+import stories from '../../data/stories.json';
+import { extractMain, scrubChrome } from '../../scripts/extractLegacyBody';
+import type { ArchiveSlug } from '../../layouts/RootLayout.astro';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import '../../styles/stories.css';
+
+// SOURCE_URLS — kept inline (duplicated from Footer.astro) to keep this
+// route self-contained. The set is small and Footer.astro doesn't
+// re-export today; if the duplication grows into a third caller, the
+// next plan can extract to src/data/sources.ts.
+const SOURCE_URLS: Record<ArchiveSlug, { name: string; url: string }> = {
+  wargov:    { name: 'war.gov / UFO',                  url: 'https://www.war.gov/UFO/' },
+  aaro:      { name: 'AARO.mil',                       url: 'https://www.aaro.mil/' },
+  nasa:      { name: 'NASA UAP Study',                 url: 'https://science.nasa.gov/uap/' },
+  nara:      { name: 'National Archives Catalog',      url: 'https://catalog.archives.gov/' },
+  geipan:    { name: 'GEIPAN (CNES)',                  url: 'https://www.cnes-geipan.fr/' },
+  uk:        { name: 'UK National Archives',           url: 'https://discovery.nationalarchives.gov.uk/' },
+  brazil:    { name: 'Força Aérea Brasileira',         url: 'https://www.fab.mil.br/' },
+  chile:     { name: 'Chile SEFAA (DGAC)',             url: 'https://www.sefaa.cl/' },
+  argentina: { name: 'CEFAe (Fuerza Aérea Argentina)', url: 'https://www.argentina.gob.ar/fuerzaaerea/cefae' },
+  canada:    { name: 'Library & Archives Canada',      url: 'https://www.bac-lac.gc.ca/' },
+  italy:     { name: 'Aeronautica Militare',           url: 'https://www.aeronautica.difesa.it/' },
+  nz:        { name: 'NZ Defence Force',               url: 'https://www.nzdf.mil.nz/' },
+  peru:      { name: 'Peru FAP (OIFAA)',               url: 'https://www.gob.pe/fap' },
+  spain:     { name: 'Ejército del Aire',              url: 'https://ejercitodelaire.defensa.gob.es/' },
+  uruguay:   { name: 'FAU (CRIDOVNI)',                 url: 'https://www.fau.mil.uy/' },
+};
+
+const VALID_ARCHIVES: ReadonlySet<ArchiveSlug> = new Set<ArchiveSlug>([
+  'wargov','aaro','nasa','nara','geipan','uk','brazil','chile','argentina',
+  'canada','italy','nz','peru','spain','uruguay',
+]);
+
+interface StoryEntry {
+  slug: string;
+  title: string;
+  archive: string;
+  legacyPath: string;
+  featured: boolean;
+  order: number;
+  incidentDate: string | null;
+}
+
+export function getStaticPaths() {
+  // Astro frontmatter is ESM; the top-level imports of readFileSync /
+  // resolve / extractMain / scrubChrome are in scope here. Each entry
+  // produces ONE static path via fs read + cascade extract + scrub.
+  return (stories as StoryEntry[]).map((entry) => {
+    const abs = resolve(process.cwd(), entry.legacyPath);
+    const raw = readFileSync(abs, 'utf8');
+    const anchor = extractMain(raw, entry.legacyPath); // throws (B-3)
+    const bodyHtml = scrubChrome(anchor, { preserveScripts: false }); // B-4
+    return {
+      params: { slug: entry.slug },
+      props: { entry, bodyHtml },
+    };
+  });
+}
+
+interface Props {
+  entry: StoryEntry;
+  bodyHtml: string;
+}
+
+const { entry, bodyHtml } = Astro.props as Props;
+
+// Defensive: validate the archive slug against the literal union. If
+// somehow the JSON drifts (manual edit + missing validation), fall back
+// to wargov so the page still renders with a known tone. Task 1's verify
+// gate normally catches this.
+const archive: ArchiveSlug = VALID_ARCHIVES.has(entry.archive as ArchiveSlug)
+  ? (entry.archive as ArchiveSlug)
+  : 'wargov';
+const source = SOURCE_URLS[archive];
+
+// Derive description (≤ 160 chars) from the scrubbed body, stripping
+// markup. Used for <meta name="description"> only — does NOT replace
+// the verbatim hero lede content.
+const description = bodyHtml
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&[a-z]+;/gi, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 158);
+
+const pageTitle = `${entry.title} — ${source.name} · realufo.org`;
+
+// Featured-archive sibling picker for the "Related" rail — show up to 2
+// other stories from the same archive (excluding self), sorted by `order`.
+const siblings = (stories as StoryEntry[])
+  .filter((s) => s.archive === archive && s.slug !== entry.slug)
+  .sort((a, b) => a.order - b.order)
+  .slice(0, 2);
+---
+<RootLayout
+  archiveSlug={archive}
+  pageType="story"
+  title={pageTitle}
+  description={description || `${entry.title} — case file from ${source.name}.`}
+>
+  <section class="hero">
+    <div class="container">
+      <div class="coords">◉ {source.name}{entry.incidentDate ? ` · ${entry.incidentDate}` : ''}</div>
+      <h1 class="hero-title">{entry.title}</h1>
+      <p class="hero-sub">
+        Verbatim case file from <a href={source.url} target="_blank" rel="noopener">{source.name}</a>.
+      </p>
+    </div>
+  </section>
+
+  {/* The verbatim TEXT slice — scrubbed of all legacy chrome per B-4.
+      data-pagefind-body is belt-and-braces with RootLayout's <main>
+      marker (Pagefind picks up either; both is safe). */}
+  <article class="story-body" data-pagefind-body set:html={bodyHtml}></article>
+
+  <p class="story-back"><a href="/stories/">← All stories</a></p>
+
+  {siblings.length > 0 && (
+    <section class="story-related">
+      <div class="section-label">§ More from {source.name}</div>
+      <div class="related-grid">
+        {siblings.map((s) => (
+          <article class="story-card">
+            <a class="card-link" href={`/stories/${s.slug}/`}>
+              <div class="card-agency">{source.name}</div>
+              <h3 class="card-title">{s.title}</h3>
+              {s.incidentDate && <div class="card-date">{s.incidentDate}</div>}
+            </a>
+          </article>
+        ))}
+        <article class="story-card">
+          <a class="card-link" href="/stories/">
+            <div class="card-agency">realufo.org</div>
+            <h3 class="card-title">Browse all stories →</h3>
+            <div class="card-date">Curated case archive</div>
+          </a>
+        </article>
+      </div>
+    </section>
+  )}
+</RootLayout>

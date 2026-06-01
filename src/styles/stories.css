@@ -1,0 +1,376 @@
+/* stories.css — Phase 04.1 (Plan 04.1-03) story-page typography + card grid.
+ *
+ * Consumed by:
+ *   src/pages/stories/[slug].astro  — `.story-body` prose typography
+ *   src/pages/stories/index.astro   — `.story-card` grid + filter bar
+ *
+ * Visual identity: locked to CLAUDE.md §3 (palette, typography). NO new
+ * colour tokens — every `color:` / `background:` here references an
+ * existing CSS variable from RootLayout's `:root` style block.
+ *
+ * Mobile-first: every rule starts at 360 px baseline; desktop overrides
+ * sit behind `@media (min-width: 720px)`. Touch targets ≥ 44 px per
+ * CLAUDE.md §8.
+ */
+
+/* ===========================================================================
+ * Story body prose (per-slug detail page)
+ * =========================================================================== */
+
+.story-body {
+  /* CLAUDE.md §3.3 — serif body, 65ch reading measure, 16/15 px sizing. */
+  max-width: 65ch;
+  margin: 32px auto;
+  padding: 0 16px;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink);
+  /* Belt-and-braces: long unbroken case names from legacy <h1>/<h2>
+   * wrap rather than overflow the 360 px viewport (CLAUDE.md §8 no
+   * horizontal scroll). */
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
+
+@media (min-width: 720px) {
+  .story-body {
+    font-size: 16px;
+    margin: 40px auto;
+  }
+}
+
+.story-body p {
+  margin: 0 0 1em 0;
+}
+
+.story-body h2,
+.story-body h3,
+.story-body h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-family: var(--serif);
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.story-body h2 { font-size: 1.4em; }
+.story-body h3 { font-size: 1.2em; }
+.story-body h4 { font-size: 1.05em; color: var(--ink-dim); }
+
+.story-body ul,
+.story-body ol {
+  margin: 0 0 1em 0;
+  padding-left: 1.6em;
+}
+
+.story-body li {
+  margin-bottom: 0.4em;
+}
+
+.story-body a {
+  color: var(--caution);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.story-body a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.story-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.2em auto;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.story-body figure {
+  margin: 1.2em 0;
+}
+
+.story-body figcaption {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  margin-top: 0.5em;
+  text-align: center;
+}
+
+.story-body blockquote {
+  margin: 1.2em 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--rule-strong);
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.story-body code,
+.story-body pre {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+.story-body code {
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.story-body pre {
+  padding: 12px;
+  border-radius: 2px;
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+}
+
+.story-body hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 2em 0;
+}
+
+.story-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.story-body th,
+.story-body td {
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.story-body th {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+/* ===========================================================================
+ * Back link (under story body)
+ * =========================================================================== */
+
+.story-back {
+  max-width: 65ch;
+  margin: 24px auto 48px;
+  padding: 0 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.story-back a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  padding: 12px 0; /* 44 px touch target per CLAUDE.md §8 */
+  display: inline-block;
+}
+
+.story-back a:hover {
+  color: var(--caution);
+}
+
+/* ===========================================================================
+ * Related cards (under story body, before footer)
+ * =========================================================================== */
+
+.story-related {
+  max-width: 1100px;
+  margin: 48px auto;
+  padding: 0 16px;
+}
+
+.story-related .section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 16px;
+}
+
+.story-related .related-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 720px) {
+  .story-related .related-grid {
+    grid-template-columns: repeat(3, minmax(280px, 1fr));
+  }
+}
+
+/* ===========================================================================
+ * Story card (index page + related)
+ * =========================================================================== */
+
+.story-card {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  padding: 16px;
+  transition: border-color 150ms ease;
+}
+
+.story-card:hover {
+  border-color: var(--rule-strong);
+}
+
+.story-card a.card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  /* 44 px touch target across whole card */
+  min-height: 44px;
+}
+
+.story-card .card-agency {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--caution);
+  margin-bottom: 6px;
+}
+
+.story-card .card-title {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.story-card .card-date {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+/* ===========================================================================
+ * Stories index page — stats, controls, grid
+ * =========================================================================== */
+
+.stories-index .arch-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .stories-index .arch-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+.stories-index .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.stories-index .stat {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.stories-index .stat-num {
+  font-family: var(--mono);
+  font-size: 22px;
+  color: var(--caution);
+  font-weight: 600;
+}
+
+.stories-index .stat-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+
+.stories-index .arch-controls-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+@media (min-width: 720px) {
+  .stories-index .arch-controls-bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+}
+
+.stories-index #stories-search {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+.stories-index #stories-search:focus {
+  outline: none;
+  border-color: var(--caution);
+}
+
+.stories-index #stories-sort {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 12px;
+  min-height: 44px;
+}
+
+.stories-index .result-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  margin: 8px 0 16px 0;
+}
+
+.stories-index .archive-group {
+  margin-bottom: 32px;
+}
+
+.stories-index .archive-group-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 12px 0;
+}
