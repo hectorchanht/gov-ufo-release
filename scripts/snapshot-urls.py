@@ -69,6 +69,10 @@ OUTPUT = os.path.join(REPO, 'URL-CONTRACT.txt')
 
 # Directories that may contain tracked .html files but must not appear
 # in the public URL contract (build artifacts, vendor copies, caches).
+# 'legacy/' is excluded post-Phase 04.1 — the legacy/ tree holds pre-SSG
+# HTML that is NOT user-navigable from the active surface; its public
+# URLs are surfaced indirectly via _redirects 301s (see Plan 04.1-06),
+# not via direct enumeration.
 EXCLUDE_DIR_PREFIXES = (
     '.git/',
     '.cache/',
@@ -76,6 +80,7 @@ EXCLUDE_DIR_PREFIXES = (
     '__pycache__/',
     'node_modules/',
     'bundles/',
+    'legacy/',
     'assets/vendor/',
     '_site/',
 )
