@@ -1,0 +1,416 @@
+[
+  {
+    "slug": "belgian-wave",
+    "title": "The Belgian UFO Wave",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/belgian-wave.html",
+    "featured": false,
+    "order": 100,
+    "incidentDate": "1989"
+  },
+  {
+    "slug": "cash-landrum",
+    "title": "Cash Landrum",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/cash-landrum.html",
+    "featured": false,
+    "order": 101,
+    "incidentDate": "1980-12-29"
+  },
+  {
+    "slug": "coyne",
+    "title": "Coyne 1973",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/coyne.html",
+    "featured": false,
+    "order": 102,
+    "incidentDate": "1973-10-18"
+  },
+  {
+    "slug": "gimbal",
+    "title": "The Gimbal encounter",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/gimbal.html",
+    "featured": true,
+    "order": 2,
+    "incidentDate": "2015-01"
+  },
+  {
+    "slug": "jal-1628",
+    "title": "JAL 1628",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/jal-1628.html",
+    "featured": false,
+    "order": 103,
+    "incidentDate": "1986-11-17"
+  },
+  {
+    "slug": "ohare-2006",
+    "title": "O'Hare 2006",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/ohare-2006.html",
+    "featured": false,
+    "order": 104,
+    "incidentDate": "2006-11-07"
+  },
+  {
+    "slug": "phoenix-lights",
+    "title": "The Phoenix Lights",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/phoenix-lights.html",
+    "featured": true,
+    "order": 8,
+    "incidentDate": "1997-03-13"
+  },
+  {
+    "slug": "stephenville",
+    "title": "Stephenville 2008",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/stephenville.html",
+    "featured": false,
+    "order": 105,
+    "incidentDate": "2008-01-08"
+  },
+  {
+    "slug": "aaro-overview",
+    "title": "AARO — All-domain Anomaly Resolution Office",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/story.html",
+    "featured": false,
+    "order": 110,
+    "incidentDate": null
+  },
+  {
+    "slug": "tehran",
+    "title": "Tehran 1976",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/tehran.html",
+    "featured": false,
+    "order": 106,
+    "incidentDate": "1976-09-19"
+  },
+  {
+    "slug": "tic-tac",
+    "title": "The Tic-Tac · USS Nimitz encounters",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/tic-tac.html",
+    "featured": true,
+    "order": 1,
+    "incidentDate": "2004-11-14"
+  },
+  {
+    "slug": "travis-walton",
+    "title": "Travis Walton",
+    "archive": "aaro",
+    "legacyPath": "legacy/aaro/travis-walton.html",
+    "featured": false,
+    "order": 107,
+    "incidentDate": "1975-11-05"
+  },
+  {
+    "slug": "argentina-overview",
+    "title": "Argentina · CEFAe",
+    "archive": "argentina",
+    "legacyPath": "legacy/argentina/story.html",
+    "featured": false,
+    "order": 200,
+    "incidentDate": null
+  },
+  {
+    "slug": "operacao-prato",
+    "title": "Operação Prato · The Saucer Investigation",
+    "archive": "brazil",
+    "legacyPath": "legacy/brazil/operacao-prato.html",
+    "featured": false,
+    "order": 210,
+    "incidentDate": "1977"
+  },
+  {
+    "slug": "brazil-overview",
+    "title": "Brazil — Força Aérea Brasileira / Arquivo Nacional",
+    "archive": "brazil",
+    "legacyPath": "legacy/brazil/story.html",
+    "featured": false,
+    "order": 213,
+    "incidentDate": null
+  },
+  {
+    "slug": "trindade",
+    "title": "The Trindade Island incident",
+    "archive": "brazil",
+    "legacyPath": "legacy/brazil/trindade.html",
+    "featured": false,
+    "order": 211,
+    "incidentDate": "1958-01-16"
+  },
+  {
+    "slug": "varginha",
+    "title": "The Varginha incident",
+    "archive": "brazil",
+    "legacyPath": "legacy/brazil/varginha.html",
+    "featured": true,
+    "order": 6,
+    "incidentDate": "1996-01"
+  },
+  {
+    "slug": "falcon-lake",
+    "title": "Falcon Lake",
+    "archive": "canada",
+    "legacyPath": "legacy/canada/falcon-lake.html",
+    "featured": true,
+    "order": 7,
+    "incidentDate": "1967-05-20"
+  },
+  {
+    "slug": "shag-harbour",
+    "title": "Shag Harbour",
+    "archive": "canada",
+    "legacyPath": "legacy/canada/shag-harbour.html",
+    "featured": false,
+    "order": 220,
+    "incidentDate": "1967-10-04"
+  },
+  {
+    "slug": "canada-overview",
+    "title": "Canada · LAC + Project Magnet",
+    "archive": "canada",
+    "legacyPath": "legacy/canada/story.html",
+    "featured": false,
+    "order": 221,
+    "incidentDate": null
+  },
+  {
+    "slug": "el-bosque",
+    "title": "El Bosque",
+    "archive": "chile",
+    "legacyPath": "legacy/chile/el-bosque.html",
+    "featured": false,
+    "order": 230,
+    "incidentDate": "2010-11-05"
+  },
+  {
+    "slug": "chile-overview",
+    "title": "Chile · CEFAA / SEFAA",
+    "archive": "chile",
+    "legacyPath": "legacy/chile/story.html",
+    "featured": false,
+    "order": 231,
+    "incidentDate": null
+  },
+  {
+    "slug": "geipan-overview",
+    "title": "GEIPAN — Phénomènes Aérospatiaux Non identifiés",
+    "archive": "geipan",
+    "legacyPath": "legacy/geipan/story.html",
+    "featured": false,
+    "order": 242,
+    "incidentDate": null
+  },
+  {
+    "slug": "trans-en-provence",
+    "title": "Trans-en-Provence",
+    "archive": "geipan",
+    "legacyPath": "legacy/geipan/trans-en-provence.html",
+    "featured": true,
+    "order": 5,
+    "incidentDate": "1981-01-08"
+  },
+  {
+    "slug": "valensole",
+    "title": "Valensole 1965",
+    "archive": "geipan",
+    "legacyPath": "legacy/geipan/valensole.html",
+    "featured": false,
+    "order": 241,
+    "incidentDate": "1965-07-01"
+  },
+  {
+    "slug": "italy-overview",
+    "title": "Italy · Aeronautica Militare",
+    "archive": "italy",
+    "legacyPath": "legacy/italy/story.html",
+    "featured": false,
+    "order": 250,
+    "incidentDate": null
+  },
+  {
+    "slug": "chiles-whitted",
+    "title": "Chiles–Whitted · Eastern Air Lines",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/chiles-whitted.html",
+    "featured": false,
+    "order": 260,
+    "incidentDate": "1948-07-24"
+  },
+  {
+    "slug": "condon-committee",
+    "title": "The Condon Committee",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/condon-committee.html",
+    "featured": false,
+    "order": 261,
+    "incidentDate": "1966"
+  },
+  {
+    "slug": "levelland",
+    "title": "Levelland 1957",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/levelland.html",
+    "featured": false,
+    "order": 262,
+    "incidentDate": "1957-11-02"
+  },
+  {
+    "slug": "lubbock-lights",
+    "title": "Lubbock Lights",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/lubbock-lights.html",
+    "featured": false,
+    "order": 263,
+    "incidentDate": "1951-08"
+  },
+  {
+    "slug": "mantell",
+    "title": "Mantell 1948",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/mantell.html",
+    "featured": false,
+    "order": 264,
+    "incidentDate": "1948-01-07"
+  },
+  {
+    "slug": "mcminnville",
+    "title": "McMinnville 1950",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/mcminnville.html",
+    "featured": false,
+    "order": 265,
+    "incidentDate": "1950-05-11"
+  },
+  {
+    "slug": "robertson-panel",
+    "title": "The Robertson Panel",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/robertson-panel.html",
+    "featured": false,
+    "order": 266,
+    "incidentDate": "1953-01"
+  },
+  {
+    "slug": "roswell",
+    "title": "Roswell · Project Mogul",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/roswell.html",
+    "featured": true,
+    "order": 3,
+    "incidentDate": "1947-07"
+  },
+  {
+    "slug": "socorro",
+    "title": "Socorro · Lonnie Zamora",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/socorro.html",
+    "featured": false,
+    "order": 267,
+    "incidentDate": "1964-04-24"
+  },
+  {
+    "slug": "nara-overview",
+    "title": "NARA — National Archives & Records Administration",
+    "archive": "nara",
+    "legacyPath": "legacy/nara/story.html",
+    "featured": false,
+    "order": 268,
+    "incidentDate": null
+  },
+  {
+    "slug": "nasa-overview",
+    "title": "NASA UAP Independent Study Team",
+    "archive": "nasa",
+    "legacyPath": "legacy/nasa/story.html",
+    "featured": false,
+    "order": 270,
+    "incidentDate": "2023"
+  },
+  {
+    "slug": "kaikoura",
+    "title": "The Kaikoura Lights",
+    "archive": "nz",
+    "legacyPath": "legacy/nz/kaikoura.html",
+    "featured": false,
+    "order": 280,
+    "incidentDate": "1978-12-31"
+  },
+  {
+    "slug": "nz-overview",
+    "title": "New Zealand · NZDF",
+    "archive": "nz",
+    "legacyPath": "legacy/nz/story.html",
+    "featured": false,
+    "order": 281,
+    "incidentDate": null
+  },
+  {
+    "slug": "peru-overview",
+    "title": "Peru · OIFAA",
+    "archive": "peru",
+    "legacyPath": "legacy/peru/story.html",
+    "featured": false,
+    "order": 290,
+    "incidentDate": null
+  },
+  {
+    "slug": "manises",
+    "title": "Caso Manises",
+    "archive": "spain",
+    "legacyPath": "legacy/spain/manises.html",
+    "featured": false,
+    "order": 300,
+    "incidentDate": "1979-11-11"
+  },
+  {
+    "slug": "spain-overview",
+    "title": "Spain · Ejército del Aire",
+    "archive": "spain",
+    "legacyPath": "legacy/spain/story.html",
+    "featured": false,
+    "order": 301,
+    "incidentDate": null
+  },
+  {
+    "slug": "cosford",
+    "title": "Cosford 1993",
+    "archive": "uk",
+    "legacyPath": "legacy/uk/cosford.html",
+    "featured": false,
+    "order": 310,
+    "incidentDate": "1993-03-30"
+  },
+  {
+    "slug": "rendlesham",
+    "title": "The Rendlesham Forest incident",
+    "archive": "uk",
+    "legacyPath": "legacy/uk/rendlesham.html",
+    "featured": true,
+    "order": 4,
+    "incidentDate": "1980-12-26"
+  },
+  {
+    "slug": "uk-overview",
+    "title": "UK · The National Archives — MoD UFO Files",
+    "archive": "uk",
+    "legacyPath": "legacy/uk/story.html",
+    "featured": false,
+    "order": 312,
+    "incidentDate": null
+  },
+  {
+    "slug": "uruguay-overview",
+    "title": "Uruguay · CRIDOVNI",
+    "archive": "uruguay",
+    "legacyPath": "legacy/uruguay/story.html",
+    "featured": false,
+    "order": 320,
+    "incidentDate": null
+  }
+]
