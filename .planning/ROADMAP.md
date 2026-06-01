@@ -169,6 +169,36 @@ Plans:
 - [x] 04-20-PLAN.md — PERF-04 + SSG-10: Phase 4 close (Lighthouse HARD-flip + retire copy-legacy-archives.sh + sync-nav/footer.py + CI drift gates + verify-python-retired.sh) (completed 2026-05-28)
 
 
+### Phase 04.1: Legacy reorg + stories/site-pages nav surface (INSERTED)
+
+**Goal:** Move every legacy HTML file into `legacy/`, expose curated case narratives under a new `/stories/{slug}/` URL contract and informational site pages under `/<page>/`, extend Nav with `STORIES ▾` + `ABOUT ▾` dropdowns and Footer with `Pages` + `Stories` columns, update `copy-legacy-archives.sh` so dist output is unchanged for surviving legacy URLs, and 301-redirect every legacy `.html` path to its new canonical home.
+
+**Requirements**: SSG-08, SSG-09, SSG-10, SSG-11, SRC-01, SRC-04, INF-02, INF-08, PERF-01, PERF-02
+
+**Depends on:** Phase 4
+
+**Plans:** 7 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 04.1-01-legacy-reorg-PLAN.md — `git mv` all legacy HTML + dormant-archive dirs into `legacy/`
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04.1-02-copy-script-update-PLAN.md — rewrite `scripts/copy-legacy-archives.sh` to source from `legacy/` and strip prefix on copy
+- [ ] 04.1-03-stories-routes-PLAN.md — `src/data/stories.json` manifest + `/stories/` index + `/stories/[slug]/` dynamic route (verbatim body extraction)
+- [ ] 04.1-04-site-pages-routes-PLAN.md — `src/data/site-pages.json` + 6 site-page Astro routes (`/about/`, `/foia/`, `/glossary/`, `/map/`, `/timeline/`, `/whatsnew/`) preserving interactive scripts for map/timeline
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04.1-05-nav-footer-dropdowns-PLAN.md — extend `Nav.astro` with `STORIES ▾` + `ABOUT ▾` (desktop CSS hover + mobile collapsible) and `Footer.astro` with Pages + Stories columns
+- [ ] 04.1-06-url-contract-redirects-PLAN.md — append new canonicals to `URL-CONTRACT.txt`, extend `scripts/build-redirects.py` to emit legacy 301 block driven by stories.json + site-pages.json, parked utilities 301→/about/
+
+**Wave 4** *(blocked on Wave 3 completion — operator checkpoint)*
+
+- [ ] 04.1-07-verification-smoke-PLAN.md — `pnpm build` + Pagefind queries + curl-redirect harness + Lighthouse + human-verify @ 360/720/1024 px
+
 ### Phase 5: Scrape Automation
 
 **Goal**: Move source ingestion off GitHub Actions cron onto Cloudflare Workers cron with a hybrid Akamai fallback, and replace the manual / local-only `gh release upload` path with a CI flow that survives partial failures.
