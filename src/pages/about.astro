@@ -1,0 +1,59 @@
+---
+// src/pages/about.astro — Phase 04.1 (Plan 04.1-04) informational
+// site-page route. Renders /about/ by extracting verbatim TEXT from
+// legacy/about.html at build time.
+//
+// Pipeline:
+//   1. fs.readFileSync(entry.legacyPath) — resolved from process.cwd().
+//   2. extractMain(raw, entry.legacyPath) — cascade selector match;
+//      throws (build fails) if no <main>/<article> anchor recognised
+//      (B-3 fix).
+//   3. scrubChrome(anchor, { preserveScripts: false }) — strips
+//      style/link/script/header/footer/scanlines/inline-style per
+//      B-4 fix. about/foia/glossary/whatsnew all use
+//      preserveScripts: false (prose-only).
+//   4. set:html the scrubbed bodyHtml into
+//      <article.page-body data-pagefind-body>.
+//
+// pageType="site-page" passed to RootLayout (B-1 fix): /about/ always
+// emits data-pagefind-body regardless of archiveSlug. archiveSlug is
+// "wargov" because cross-cutting pages use the default wargov gold tone.
+//
+// CLAUDE.md §9 trust boundary: extracted body is verbatim public-domain
+// official text (17 U.S.C. § 105). scrubChrome only removes presentation
+// chrome — paragraph/heading/list/image/link content is untouched.
+//
+// See src/scripts/extractLegacyBody.ts for the extractor helpers and
+// .planning/phases/04.1-legacy-reorg-stories-site-pages-nav-surface/
+//   04.1-legacy-html-structure-audit.md for the per-file selector contract.
+
+import RootLayout from '../layouts/RootLayout.astro';
+import sitePages from '../data/site-pages.json';
+import { extractMain, scrubChrome } from '../scripts/extractLegacyBody';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import '../styles/site-pages.css';
+
+const SLUG = 'about';
+const entry = sitePages.find((e) => e.slug === SLUG)!;
+const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
+const anchor = extractMain(raw, entry.legacyPath); // throws on no-anchor (B-3)
+const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts }); // B-4
+// W-4 fix: bodyHtml contains scripts ONLY from the anchor slice (never
+// from legacy <head>); for this slug preserveScripts is false so all
+// scripts are scrubbed regardless.
+---
+<RootLayout
+  archiveSlug="wargov"
+  pageType="site-page"
+  title={`${entry.title} — realufo.org`}
+  description={entry.subtitle}
+>
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">{entry.title}</h1>
+      <p class="hero-sub">{entry.subtitle}</p>
+    </div>
+  </section>
+  <article class="page-body" data-slug={SLUG} data-pagefind-body set:html={bodyHtml}></article>
+</RootLayout>

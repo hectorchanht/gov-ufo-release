@@ -25,42 +25,123 @@
 // raw «body» fallback — see CLAUDE.md §11 don'ts ("no force-push") AND
 // the build-fail contract in extractMain() below.
 //
+// Each entry MAY have an optional `filePath` matcher (regex against the
+// repo-relative legacyPath). When present, the entry only fires for that
+// specific file — so the generic `<main>` / `<article>` cascade-1/-2
+// rules remain safe, and cascade-3 (per-file custom selectors) cannot
+// accidentally match files it wasn't audited for.
+//
 // Each regex captures the INNER HTML of the matching element. The `\b`
 // after the tag name prevents `<maintenance>`/`<articulated>` etc. from
 // matching (paranoid, but cheap).
-const CASCADE: ReadonlyArray<{ re: RegExp; name: string }> = [
+const CASCADE: ReadonlyArray<{ re: RegExp; name: string; filePath?: RegExp }> = [
   // Cascade-1 (audit §) — 55 of 89 legacy files. Every project-authored
-  // story HTML + 6 site pages.
+  // story HTML + 5 site pages (about, foia, glossary, timeline, whatsnew).
   { re: /<main\b[^>]*>([\s\S]*?)<\/main>/i, name: '<main>' },
   // Cascade-2 (audit §) — 10 dormant-archive `<slug>/index.html` files.
   // Only used for files NOT enumerated in stories.json/site-pages.json
   // today (those files are routed via legacy 301 in Plan 04.1-06), but
   // kept here so a future re-add doesn't need an extractor change.
   { re: /<article\b[^>]*>([\s\S]*?)<\/article>/i, name: '<article>' },
-  // Cascade-3 is not implemented as a generic selector. The single file
-  // that needs a custom selector (legacy/aaro/details.html — uses
-  // `<div class="container">`) is intentionally NOT in stories.json for
-  // Plan 04.1-03 — the `/stories/aaro-overview/` slot is filled by
-  // legacy/aaro/story.html which has a `<main>` anchor. If a future
-  // plan re-introduces details.html, this CASCADE gains a per-file
-  // entry guarded by filePath, NOT a generic <div.container> rule that
-  // would catch Nav/Footer chrome divs.
+  // Cascade-3b (audit §) — legacy/map.html has NO `<main>`, NO
+  // `<article>`, AND no in-file `<footer>` (the legacy map page ended
+  // at `</body>` directly; the visual footer was a sibling include
+  // in the pre-Phase-4 build pipeline). The audited body region is
+  // the slice starting at the unambiguous `<section id="map">` marker
+  // and ending at the first `<footer` boundary OR `</body>` if no
+  // footer is present in-file.
+  //
+  // Anchoring on `<section id="map"` is safe because the audit
+  // confirms there is exactly ONE `<section id="map">` in
+  // legacy/map.html. Lookahead-terminator allows the regex to
+  // gracefully cope with both footer-bearing and footer-less legacy
+  // shapes (legacy/map.html is the latter; future re-audited files
+  // with body-tail content + footer would also work).
+  //
+  // Scripts INSIDE this slice (the Leaflet init at lines ~181/~294)
+  // are preserved by scrubChrome({ preserveScripts: true }). The
+  // `<script id="nav-script-shared">` block at the tail of the slice
+  // is stripped by scrubChrome's nav-script-shared cleanup pass
+  // because it duplicates Astro Nav.astro's dropdown behaviour (per
+  // 04.1-legacy-html-structure-audit.md §"Extractor implementation
+  // hints"). W-4 fix is upheld: scripts come ONLY from the anchor
+  // slice, never from legacy <head>.
+  //
+  // filePath guard ensures this only fires for legacy/map.html — the
+  // start anchor `<section id="map"` is unambiguous globally, but
+  // belt-and-braces.
+  {
+    filePath: /(^|\/)map\.html$/,
+    re: /(<section\s+id=["']map["'][\s\S]*?)(?=<footer\b|<\/body>)/i,
+    name: 'map.html cascade-3b',
+  },
+  // Cascade-3c (audit §"Script preservation whitelist") — legacy/
+  // timeline.html. The legacy file has a `<main>` anchor (cascade-1
+  // WOULD match) but the timeline init script lives AFTER `</main>`
+  // in the body-tail region (audit-confirmed at line ~226 in
+  // legacy/timeline.html — actually OUTSIDE `<main>` despite the
+  // audit table's "inside <main>" cell, which was an authoring slip).
+  // The post-`</main>` body region also contains `<footer>` (legacy
+  // chrome, scrubbed by scrubChrome) and another inline script at
+  // line ~494 (the data-loading IIFE — KEEP per audit). The trailing
+  // `<script id="nav-script-shared">` is DROPPED per audit "Extractor
+  // implementation hints" (handled in scrubChrome).
+  //
+  // To preserve both the <main> content AND the body-tail timeline
+  // scripts, we extend the cascade slice from `<main>` open through
+  // to the `<script id="nav-script-shared">` boundary (exclusive).
+  // scrubChrome then strips the legacy `<footer>` content, the stray
+  // `</main>` tag, and the nav-script-shared block (already stripped
+  // earlier if it slips into the slice).
+  //
+  // filePath guard ensures cascade-1 (<main>) does NOT win first for
+  // timeline.html — we want the EXTENDED slice. The guard makes the
+  // generic <main> rule SKIP timeline.html implicitly by being later
+  // in the cascade order ... but since cascade-1 (no guard) runs
+  // FIRST, we need to ensure cascade-3c runs FIRST for timeline.html
+  // specifically. Solution: add this entry BEFORE cascade-1, but
+  // gate it with the timeline.html filePath. Implementation below
+  // reorders.
+  {
+    filePath: /(^|\/)timeline\.html$/,
+    re: /<main\b[^>]*>([\s\S]*?)<script\s+id=["']nav-script-shared["']/i,
+    name: 'timeline.html cascade-3c (main + body-tail scripts)',
+  },
+  // Future per-file selectors (e.g. legacy/aaro/details.html cascade-3a
+  // — `<div class="container">`) would go here with their own
+  // filePath guards.
 ];
 
 /**
  * Extract the structural body anchor from a raw legacy HTML string.
  *
- * Strategy: walk the CASCADE list in order; return the inner HTML of the
- * first matching element. If NONE match, THROW with the file path so the
- * build fails fast and the operator can extend the audit + cascade.
+ * Strategy: filePath-guarded cascade entries (cascade-3* per-file
+ * selectors) are tried FIRST so they can override the generic
+ * `<main>`/`<article>` rules for files that need a different slice
+ * (e.g. legacy/timeline.html, where the body-tail timeline-init
+ * script lives AFTER `</main>` and would be lost by cascade-1). If
+ * no guarded entry matches OR fires, fall through to the unguarded
+ * entries in declaration order. If NONE match, THROW with the file
+ * path so the build fails fast and the operator can extend the audit
+ * + cascade.
  *
  * @param html      — full HTML text read from the legacy file
- * @param filePath  — repo-relative legacy path (used only for the error msg)
+ * @param filePath  — repo-relative legacy path (used by cascade-3 guards
+ *                    AND the error message)
  * @returns inner HTML of the matched anchor (NOT yet scrubbed)
  * @throws Error if no cascade selector matches
  */
 export function extractMain(html: string, filePath: string): string {
-  for (const { re } of CASCADE) {
+  // Pass 1 — guarded per-file cascade entries (cascade-3*).
+  for (const { re, filePath: guard } of CASCADE) {
+    if (!guard) continue;
+    if (!guard.test(filePath)) continue;
+    const m = html.match(re);
+    if (m) return m[1];
+  }
+  // Pass 2 — unguarded generic entries (cascade-1, cascade-2).
+  for (const { re, filePath: guard } of CASCADE) {
+    if (guard) continue;
     const m = html.match(re);
     if (m) return m[1];
   }
@@ -110,7 +191,20 @@ export function scrubChrome(html: string, opts: ScrubOptions = {}): string {
   out = out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
   // 2. <link rel="stylesheet" …> — void element or self-closing.
   out = out.replace(/<link\b[^>]*\brel=["']?stylesheet["']?[^>]*\/?>/gi, '');
-  // 3. <script>…</script> — unconditionally stripped for stories.
+  // 3a. <script id="nav-script-shared">…</script> — legacy "canonical
+  //     nav-dropdown wiring" block injected by the retired
+  //     scripts/sync-nav.py builder. Strips ALWAYS, regardless of
+  //     preserveScripts, because Astro Nav.astro now owns dropdown
+  //     wiring (Plan 04.1-05) — leaving this script in would either
+  //     double-bind event listeners (`.has-dropdown > details` collide
+  //     with Astro Nav's own toggle wiring) or fail noisily when the
+  //     selectors don't match. Per 04.1-legacy-html-structure-audit.md
+  //     §"Extractor implementation hints".
+  out = out.replace(
+    /<script\b[^>]*\bid=["']nav-script-shared["'][^>]*>[\s\S]*?<\/script>/gi,
+    '',
+  );
+  // 3b. <script>…</script> — unconditionally stripped for stories.
   //    Site-pages opt in via preserveScripts when their data row asks
   //    for in-body Leaflet/timeline JS (W-4 fix: callers pass only the
   //    extracted anchor slice, so head-region scripts NEVER leak).
@@ -121,6 +215,28 @@ export function scrubChrome(html: string, opts: ScrubOptions = {}): string {
   out = out.replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, '');
   // 5. <footer>…</footer> — legacy chrome competing with Footer.astro.
   out = out.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, '');
+  // 5a. Stray `</main>` close tag — appears in timeline.html cascade-3c
+  //     slice where the extracted region spans the </main> boundary
+  //     to reach the body-tail timeline-init script. Removed so the
+  //     final article body doesn't contain an unmatched closer.
+  out = out.replace(/<\/main>/gi, '');
+  out = out.replace(/<main\b[^>]*>/gi, '');
+  // 5b. Inner content <nav> landmarks (e.g. legacy/foia.html
+  //     `<nav class="toc">`, legacy/glossary.html `<nav class="az">`):
+  //     rewrite the tag NAME from `nav` to `div` while preserving all
+  //     attributes and inner content (anchor links to #us, #uk, etc).
+  //     Astro Nav.astro is the SOLE `<nav>` landmark on the page (B-3
+  //     anti-double-render: exactly ONE `<nav>` element per built
+  //     HTML). The a11y `aria-label` attributes carried by these
+  //     inline TOCs are preserved verbatim so screen readers still
+  //     announce the section, and `role="navigation"` is added so the
+  //     navigation landmark role is retained. Verbatim TEXT (CLAUDE.md
+  //     §9) is preserved — only the tag NAME changes.
+  out = out.replace(
+    /<nav\b([^>]*)>/gi,
+    (_match, attrs) => `<div role="navigation"${attrs}>`,
+  );
+  out = out.replace(/<\/nav>/gi, '</div>');
   // 6. <div class="…scanlines…" …>…</div> — RootLayout's own scanlines
   //    overlay already wraps the page; legacy duplicates stack visually.
   out = out.replace(

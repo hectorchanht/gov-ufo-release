@@ -1,0 +1,58 @@
+---
+// src/pages/timeline.astro — Phase 04.1 (Plan 04.1-04) informational
+// site-page route. Renders /timeline/ by extracting verbatim TEXT
+// from legacy/timeline.html's <main> anchor (cascade-1) and
+// preserving the anchor-slice interactive script (timeline init).
+//
+// Pipeline:
+//   1. fs.readFileSync(entry.legacyPath) — resolved from process.cwd().
+//   2. extractMain(raw, entry.legacyPath) — cascade-1 (<main>) fires.
+//      The legacy <main> contains the timeline init script at line
+//      ~226 (per audit) which is preserved verbatim.
+//   3. scrubChrome(anchor, { preserveScripts: true }) — strips
+//      style/link/header/footer/scanlines/inline-style BUT keeps
+//      <script> blocks inside the anchor slice (timeline scrubber).
+//      W-4 fix: scripts come ONLY from the anchor slice, NEVER from
+//      legacy <head>. The body-tail scripts in legacy/timeline.html
+//      at lines ~494 and ~512 are AFTER </main> and therefore NOT
+//      part of the anchor — they are not preserved.
+//   4. set:html the scrubbed bodyHtml into
+//      <article.page-body data-pagefind-body>.
+//
+// pageType="site-page" passed to RootLayout (B-1 fix): /timeline/
+// always emits data-pagefind-body. archiveSlug "wargov" for default
+// gold tone.
+//
+// CLAUDE.md §9 trust boundary: verbatim public-domain content.
+//
+// See src/scripts/extractLegacyBody.ts and
+// 04.1-legacy-html-structure-audit.md for the script-preservation
+// whitelist details.
+
+import RootLayout from '../layouts/RootLayout.astro';
+import sitePages from '../data/site-pages.json';
+import { extractMain, scrubChrome } from '../scripts/extractLegacyBody';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import '../styles/site-pages.css';
+
+const SLUG = 'timeline';
+const entry = sitePages.find((e) => e.slug === SLUG)!;
+const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
+const anchor = extractMain(raw, entry.legacyPath);
+const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts });
+---
+<RootLayout
+  archiveSlug="wargov"
+  pageType="site-page"
+  title={`${entry.title} — realufo.org`}
+  description={entry.subtitle}
+>
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">{entry.title}</h1>
+      <p class="hero-sub">{entry.subtitle}</p>
+    </div>
+  </section>
+  <article class="page-body" data-slug={SLUG} data-pagefind-body set:html={bodyHtml}></article>
+</RootLayout>

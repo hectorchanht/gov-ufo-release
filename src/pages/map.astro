@@ -1,0 +1,72 @@
+---
+// src/pages/map.astro — Phase 04.1 (Plan 04.1-04) informational
+// site-page route. Renders /map/ by extracting body region from
+// legacy/map.html via cascade-3b (per audit) and preserving the
+// anchor-slice interactive scripts (Leaflet map init).
+//
+// Pipeline:
+//   1. fs.readFileSync(entry.legacyPath) — resolved from process.cwd().
+//   2. extractMain(raw, entry.legacyPath) — cascade-3b fires for
+//      map.html (legacy/map.html has no <main>/<article>). Returns the
+//      concat between <section id="map"> and <footer>.
+//   3. scrubChrome(anchor, { preserveScripts: true }) — strips
+//      style/link/header/footer/scanlines/inline-style BUT keeps
+//      <script> blocks inside the anchor slice (Leaflet init).
+//      W-4 fix: scripts come ONLY from the anchor slice, NEVER from
+//      legacy <head> (because extractMain returns only the anchor).
+//   4. set:html the scrubbed bodyHtml into
+//      <article.page-body data-pagefind-body>.
+//
+// pageType="site-page" passed to RootLayout (B-1 fix): /map/ always
+// emits data-pagefind-body. archiveSlug is "wargov" for the default
+// gold tone (cross-cutting page).
+//
+// Leaflet dependency: the legacy <head> loads
+//   <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css">
+//   <script src="/assets/vendor/leaflet/leaflet.js"></script>
+// These are NOT preserved by scrubChrome (they live in legacy <head>,
+// not in the anchor slice). The Leaflet vendor assets are shipped at
+// /assets/vendor/leaflet/ via the copy-legacy-archives.sh postbuild
+// or via the public/ directory. We inject the leaflet <link> + <script>
+// into <head> via the head-extra slot so the in-body init script can
+// reference window.L.
+//
+// CLAUDE.md §9 trust boundary: extracted body is verbatim
+// public-domain official content. scrubChrome only removes presentation
+// chrome — section/legend/script content is untouched.
+//
+// See src/scripts/extractLegacyBody.ts for the extractor helpers and
+// .planning/phases/04.1-legacy-reorg-stories-site-pages-nav-surface/
+//   04.1-legacy-html-structure-audit.md (cascade-3b + script
+//   preservation whitelist).
+
+import RootLayout from '../layouts/RootLayout.astro';
+import sitePages from '../data/site-pages.json';
+import { extractMain, scrubChrome } from '../scripts/extractLegacyBody';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import '../styles/site-pages.css';
+
+const SLUG = 'map';
+const entry = sitePages.find((e) => e.slug === SLUG)!;
+const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
+const anchor = extractMain(raw, entry.legacyPath); // cascade-3b
+const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts }); // true
+---
+<RootLayout
+  archiveSlug="wargov"
+  pageType="site-page"
+  title={`${entry.title} — realufo.org`}
+  description={entry.subtitle}
+>
+  <link slot="head-extra" rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css" />
+  <script slot="head-extra" src="/assets/vendor/leaflet/leaflet.js" is:inline></script>
+
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">{entry.title}</h1>
+      <p class="hero-sub">{entry.subtitle}</p>
+    </div>
+  </section>
+  <article class="page-body" data-slug={SLUG} data-pagefind-body set:html={bodyHtml}></article>
+</RootLayout>

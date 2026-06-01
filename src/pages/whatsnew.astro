@@ -1,0 +1,36 @@
+---
+// src/pages/whatsnew.astro — Phase 04.1 (Plan 04.1-04) informational
+// site-page route. Renders /whatsnew/ by extracting verbatim TEXT
+// from legacy/whatsnew.html at build time.
+//
+// Same pipeline as about.astro — see that file's header for the full
+// contract. preserveScripts: false (prose-only release log).
+// pageType="site-page" forces Pagefind body marker (B-1 fix).
+
+import RootLayout from '../layouts/RootLayout.astro';
+import sitePages from '../data/site-pages.json';
+import { extractMain, scrubChrome } from '../scripts/extractLegacyBody';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import '../styles/site-pages.css';
+
+const SLUG = 'whatsnew';
+const entry = sitePages.find((e) => e.slug === SLUG)!;
+const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
+const anchor = extractMain(raw, entry.legacyPath);
+const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts });
+---
+<RootLayout
+  archiveSlug="wargov"
+  pageType="site-page"
+  title={`${entry.title} — realufo.org`}
+  description={entry.subtitle}
+>
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">{entry.title}</h1>
+      <p class="hero-sub">{entry.subtitle}</p>
+    </div>
+  </section>
+  <article class="page-body" data-slug={SLUG} data-pagefind-body set:html={bodyHtml}></article>
+</RootLayout>
