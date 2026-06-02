@@ -460,15 +460,21 @@ footer {
 
 footer .footer-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Phase 04.1: footer expanded to 6 columns (Pages + Stories added).
+     auto-fit + minmax reflows 6 → 3 → 1 across viewport widths so the
+     grid never overflows the container at narrow desktop widths. */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 32px;
 }
 
 @media (max-width: 960px) {
-  footer .footer-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Tablet / narrow desktop: 3 columns max so the per-column min-width
+     of 160 px still respects the gap budget on ~720-960 px viewports. */
+  footer .footer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 719.98px) {
+  /* CLAUDE.md §8 mobile baseline — single column stack below 720 px. */
   footer .footer-grid { grid-template-columns: 1fr; }
 }
 

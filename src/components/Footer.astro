@@ -14,8 +14,18 @@
 // every license string below is copy-pasted from the spec — no paraphrase.
 // Footer external-source links DO use the inline ↗ marker (CLAUDE.md §11
 // don't applies only to HEADER nav links).
+//
+// Phase 04.1 — Pages + Stories columns added (Plan 04.1-05). Two new
+// columns slot between License and Archives:
+// • Pages — 6 site-page entries (mirrors Nav.astro ABOUT_PAGES + the
+//   src/data/site-pages.json manifest)
+// • Stories — /stories/ index link + first 4 featured stories from
+//   src/data/stories.json
+// Internal links in these two columns do NOT use the ↗ marker; the
+// external-source column above still does.
 
 import type { ArchiveSlug } from '../layouts/RootLayout.astro';
+import stories from '../data/stories.json';
 
 interface Props {
   archiveSlug: ArchiveSlug;
@@ -95,6 +105,29 @@ const PATH: Record<ArchiveSlug, string> = {
   argentina: '/argentina/', canada: '/canada/', italy: '/italy/',
   nz: '/nz/', peru: '/peru/', spain: '/spain/', uruguay: '/uruguay/',
 };
+
+// Phase 04.1 — Pages column: 6 site-page entries (mirror of Nav.astro
+// ABOUT_PAGES). Duplication intentional: keeps Footer.astro decoupled
+// from Nav.astro for label-only display tweaks and avoids cross-component
+// coupling. Order = display order per UI-SPEC §2.2.
+const SITE_PAGES = [
+  { slug: 'about',     label: 'About' },
+  { slug: 'foia',      label: 'FOIA' },
+  { slug: 'glossary',  label: 'Glossary' },
+  { slug: 'map',       label: 'Map' },
+  { slug: 'timeline',  label: 'Timeline' },
+  { slug: 'whatsnew',  label: "What's New" },
+] as const;
+
+// Phase 04.1 — Stories column. Top 4 featured stories (CONTEXT.md
+// decision: 4-6 curated). Reading the same source as Nav.astro means
+// the footer surface tracks featured-story changes automatically; the
+// Nav.astro W-3 build-time gate already locks the {1..8} invariant
+// so Footer can rely on the order.
+const FEATURED_STORIES = stories
+  .filter((s) => s.featured === true)
+  .sort((a, b) => a.order - b.order);
+const FOOTER_STORIES = FEATURED_STORIES.slice(0, 4);
 ---
 
 <footer>
@@ -143,6 +176,30 @@ const PATH: Record<ArchiveSlug, string> = {
           under their respective public-information statutes. realufo.org provides no
           additional copyright claim.
         </p>
+      </div>
+
+      {/* Phase 04.1 — Pages column (UI-SPEC §3 / CONTEXT.md "Footer surface").
+          Internal-link column → NO ↗ marker. Mirrors Nav.astro ABOUT_PAGES. */}
+      <div>
+        <h4>Pages</h4>
+        <ul>
+          {SITE_PAGES.map((p) => (
+            <li><a href={`/${p.slug}/`}>{p.label}</a></li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Phase 04.1 — Stories column. /stories/ index first, then top 4
+          featured stories from src/data/stories.json. Internal-link
+          column → NO ↗ marker. */}
+      <div>
+        <h4>Stories</h4>
+        <ul>
+          <li><a href="/stories/">All stories</a></li>
+          {FOOTER_STORIES.map((s) => (
+            <li><a href={`/stories/${s.slug}/`}>{s.title}</a></li>
+          ))}
+        </ul>
       </div>
 
       <div>
