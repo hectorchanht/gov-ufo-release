@@ -253,3 +253,37 @@ echo "postbuild: copied $copied_count legacy files into dist/; skipped $skipped_
 # ============================================================
 echo "[postbuild] pagefind: indexing dist/ ..."
 pnpm exec pagefind --site dist
+
+# ============================================================
+# SEO infra (audit-driven 2026-06-02) — sitemap.xml + PWA manifest.
+#
+# build-sitemap.py reads URL-CONTRACT.txt (single source of truth) and
+# emits dist/sitemap.xml listing every canonical realufo.org route.
+# robots.txt ships from public/robots.txt (Astro auto-copies that dir
+# to dist/ at build time — no postbuild work required).
+#
+# manifest.webmanifest fallback: 46 legacy AARO pages reference
+# `/manifest.webmanifest` in their `<link rel="manifest">`. Until those
+# legacy pages are rewritten (or retired), emit a minimal manifest so
+# the link resolves with 200 instead of 404. Mirrors the PWA plugin's
+# astro.config.mjs `manifest` block.
+# ============================================================
+python3 scripts/build-sitemap.py
+
+if [ ! -f "$DIST/manifest.webmanifest" ]; then
+  cat > "$DIST/manifest.webmanifest" << 'MANIFEST'
+{
+  "name": "realufo.org — Government UAP Archive",
+  "short_name": "realufo",
+  "description": "Offline-first archive of every official government UAP source",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0a0a0c",
+  "background_color": "#0a0a0c",
+  "icons": [
+    { "src": "/assets/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
+MANIFEST
+  echo "[postbuild] wrote dist/manifest.webmanifest fallback"
+fi

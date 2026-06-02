@@ -1,0 +1,17 @@
+# realufo.org — Government UAP archive
+# Public-domain official content; full crawl welcomed.
+# Sitemap: machine-readable index of every canonical route.
+
+User-agent: *
+Allow: /
+
+# Block large binary assets that aren't useful to index (PDFs/videos
+# live on GitHub Releases; service worker + CF worker entry are not
+# user-facing pages).
+Disallow: /_worker.js/
+Disallow: /sw.js
+Disallow: /sw.js.map
+Disallow: /pagefind/index/
+Disallow: /pagefind/fragment/
+
+Sitemap: https://realufo.org/sitemap.xml
