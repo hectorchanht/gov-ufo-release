@@ -115,10 +115,24 @@
 }
 
 /* Wider canvas for visualization-driven pages (map + timeline) — these are
- * not prose-driven, so the 65ch reading column doesn't apply. */
-.page-body[data-slug="map"],
+ * not prose-driven, so the 65ch reading column doesn't apply. Map takes
+ * full viewport width (edge-to-edge) — see breakout block below. */
 .page-body[data-slug="timeline"] {
   max-width: 90ch;
+}
+
+/* Hotfix 2026-06-02 — /map/ full-bleed breakout.
+ * Map should be as big as possible — escape the .page-body 65ch column and
+ * span the full viewport width. Margin trick (`width: 100vw; margin-left:
+ * 50%; transform: translateX(-50%)`) lets a block element ignore its
+ * parent's max-width without changing the layout tree. */
+.page-body[data-slug="map"] {
+  max-width: none;
+  width: 100vw;
+  margin: 16px 0 0;            /* tight gap below hero, no auto-center */
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding: 0;
 }
 
 /* Map + timeline embed interactive sections (Leaflet map, timeline scrubber)
@@ -136,11 +150,34 @@
  * Legacy used `#map { flex:1 }` inside a flex parent. We use min-height
  * directly so it works in the Astro layout's block context.
  */
+/* Map fills viewport — height = full screen minus 64 px sticky header
+ * minus a small margin so the legend overlay has breathing room.
+ * Desktop ≥720 px: ~85vh. Mobile <720 px: stays large but drops a bit
+ * to leave hero + scroll cue visible. dvh (dynamic viewport height)
+ * accounts for mobile browser chrome (URL bar) showing/hiding.
+ */
+/* Desktop: viewport minus sticky header (64 px) + hero (~140 px) gives
+ * a map that dominates the fold without forcing scroll on a typical
+ * 1080 px laptop. dvh handles mobile browser chrome show/hide. */
 .page-body[data-slug="map"] #map {
-  min-height: 70vh;
+  height: calc(100dvh - 200px);
+  min-height: 520px;
   width: 100%;
+  margin: 0;
   background: var(--bg);
-  border: 1px solid var(--rule);
+  border: none;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Mobile: shorter hero, but reserve more vertical room for thumb scroll
+ * + dock chrome. Drops to 100dvh - 180px so the map still owns the fold
+ * but doesn't bleed into the URL bar / home indicator. */
+@media (max-width: 720px) {
+  .page-body[data-slug="map"] #map {
+    height: calc(100dvh - 180px);
+    min-height: 420px;
+  }
 }
 
 /* Hotfix 2026-06-02 — restore legacy dark theme for /map/. Verbatim port
