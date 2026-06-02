@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "generatedAt": "2026-05-24T15:17:13Z",
-    "totalRecords": 4842,
+    "generatedAt": "2026-06-02T08:00:22Z",
+    "totalRecords": 0,
     "totalArchives": 15,
     "license": "See per-archive source jurisdictions on https://realufo.org/",
     "docs": "https://realufo.org/api/"
@@ -10,142 +10,142 @@
     {
       "id": "wargov",
       "label": "War.gov / PURSUE",
-      "count": 222,
-      "local": 14,
-      "localPct": 6.3,
-      "sourceOnly": 208,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "pdfs-v1"
     },
     {
       "id": "aaro",
       "label": "AARO",
-      "count": 112,
-      "local": 46,
-      "localPct": 41.1,
-      "sourceOnly": 66,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "aaro-v1"
     },
     {
       "id": "nasa",
       "label": "NASA UAP",
-      "count": 18,
-      "local": 6,
-      "localPct": 33.3,
-      "sourceOnly": 12,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "nasa-v1"
     },
     {
       "id": "nara",
       "label": "NARA",
-      "count": 73,
-      "local": 58,
-      "localPct": 79.5,
-      "sourceOnly": 15,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "nara-v1"
     },
     {
       "id": "geipan",
       "label": "France · GEIPAN",
-      "count": 3343,
-      "local": 9,
-      "localPct": 0.3,
-      "sourceOnly": 3334,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "geipan-v1"
     },
     {
       "id": "uk",
       "label": "UK · National Archives",
-      "count": 953,
-      "local": 2,
-      "localPct": 0.2,
-      "sourceOnly": 951,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "uk-v1"
     },
     {
       "id": "brazil",
       "label": "Brazil · FAB",
-      "count": 17,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 17,
+      "sourceOnly": 0,
       "release": "brazil-v1"
     },
     {
       "id": "chile",
       "label": "Chile · SEFAA",
-      "count": 78,
-      "local": 9,
-      "localPct": 11.5,
-      "sourceOnly": 69,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "chile-v1"
     },
     {
       "id": "argentina",
       "label": "Argentina · CEFAe",
-      "count": 3,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 3,
+      "sourceOnly": 0,
       "release": "argentina-v1"
     },
     {
       "id": "canada",
       "label": "Canada · LAC / Magnet",
-      "count": 5,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 5,
+      "sourceOnly": 0,
       "release": "canada-v1"
     },
     {
       "id": "italy",
       "label": "Italy · Aeronautica",
-      "count": 4,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 4,
+      "sourceOnly": 0,
       "release": "italy-v1"
     },
     {
       "id": "nz",
       "label": "NZ · NZDF",
-      "count": 5,
-      "local": 3,
-      "localPct": 60.0,
-      "sourceOnly": 2,
+      "count": 0,
+      "local": 0,
+      "localPct": 0.0,
+      "sourceOnly": 0,
       "release": "nz-v1"
     },
     {
       "id": "peru",
       "label": "Peru · OIFAA",
-      "count": 3,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 3,
+      "sourceOnly": 0,
       "release": "peru-v1"
     },
     {
       "id": "spain",
       "label": "Spain · Ejército del Aire",
-      "count": 3,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 3,
+      "sourceOnly": 0,
       "release": "spain-v1"
     },
     {
       "id": "uruguay",
       "label": "Uruguay · CRIDOVNI",
-      "count": 3,
+      "count": 0,
       "local": 0,
       "localPct": 0.0,
-      "sourceOnly": 3,
+      "sourceOnly": 0,
       "release": "uruguay-v1"
     }
   ],
   "totals": {
-    "records": 4842,
-    "local": 147,
+    "records": 0,
+    "local": 0,
     "archives": 15
   }
 }

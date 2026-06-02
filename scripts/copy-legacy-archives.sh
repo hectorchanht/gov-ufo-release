@@ -235,6 +235,19 @@ for dir in api feeds; do
   fi
 done
 
+# Emit directory-index pages for /api/ + /feeds/ so the bare directory
+# URLs (linked from about + whatsnew) don't 404 on CF Pages. Surfaced by
+# /gsd:debug link-asset-seo-audit (2026-06-02).
+python3 "$REPO/scripts/build-dir-index.py" || \
+  echo "postbuild: WARN build-dir-index.py failed (non-fatal)" >&2
+
+# Rewrite legacy `.html` cross-refs in copied dormant + partial-port HTML
+# so dev/preview servers don't 404 on internal nav (production CF Pages
+# already handles via _redirects 301s, but the chain costs a hop).
+# Surfaced by /gsd:debug link-asset-seo-audit (2026-06-02).
+python3 "$REPO/scripts/rewrite-dist-legacy-links.py" || \
+  echo "postbuild: WARN rewrite-dist-legacy-links.py failed (non-fatal)" >&2
+
 echo "postbuild: copied $copied_count legacy files into dist/; skipped $skipped_count oversized files"
 
 # ============================================================

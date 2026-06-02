@@ -78,6 +78,41 @@ function slugify(text: string): string {
 // <meta name="description"> content verbatim.
 const title = 'NARA — National Archives & Records Administration UAP Records | realufo.org';
 const description = "Offline mirror of the National Archives' Unidentified Anomalous Phenomena records gateway.";
+
+// JSON-LD Dataset schema (Phase 04.1 audit `jsonld-structured-data`).
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: 'National Archives & Records Administration (NARA)',
+  description,
+  url: 'https://realufo.org/nara/',
+  inLanguage: 'en',
+  license: 'https://creativecommons.org/publicdomain/mark/1.0/',
+  isAccessibleForFree: true,
+  publisher: {
+    '@type': 'Organization',
+    name: 'realufo.org',
+    url: 'https://realufo.org',
+    logo: { '@type': 'ImageObject', url: 'https://realufo.org/assets/favicon.svg' },
+  },
+  creator: {
+    '@type': 'GovernmentOrganization',
+    name: 'National Archives & Records Administration (NARA)',
+    url: 'https://catalog.archives.gov/',
+  },
+  distribution: [
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/json',
+      contentUrl: 'https://realufo.org/api/by-archive.json',
+    },
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/atom+xml',
+      contentUrl: 'https://realufo.org/feeds/nara.xml',
+    },
+  ],
+};
 ---
 <RootLayout
   archiveSlug="nara"
@@ -86,6 +121,7 @@ const description = "Offline mirror of the National Archives' Unidentified Anoma
   totalRecords={stats.total}
   lastUpdated="2026-05-27"
 >
+  <script slot="head-extra" is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
   <section class="hero" id="intro">
     <div class="container">
       <div class="coords">38°53′34″N, 77°01′23″W · NATIONAL ARCHIVES BUILDING, WASHINGTON, D.C.</div>

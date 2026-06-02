@@ -84,6 +84,41 @@ function slugify(text: string): string {
 // copy" + NARA 04-15 + NASA 04-16 precedent).
 const title = 'AARO — All-domain Anomaly Resolution Office | realufo.org';
 const description = 'Offline archival mirror of aaro.mil — official UAP imagery, case resolution reports, and historical records.';
+
+// JSON-LD Dataset schema (Phase 04.1 audit `jsonld-structured-data`).
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: 'AARO — All-domain Anomaly Resolution Office',
+  description,
+  url: 'https://realufo.org/aaro/',
+  inLanguage: 'en',
+  license: 'https://creativecommons.org/publicdomain/mark/1.0/',
+  isAccessibleForFree: true,
+  publisher: {
+    '@type': 'Organization',
+    name: 'realufo.org',
+    url: 'https://realufo.org',
+    logo: { '@type': 'ImageObject', url: 'https://realufo.org/assets/favicon.svg' },
+  },
+  creator: {
+    '@type': 'GovernmentOrganization',
+    name: 'AARO — All-domain Anomaly Resolution Office',
+    url: 'https://www.aaro.mil/',
+  },
+  distribution: [
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/json',
+      contentUrl: 'https://realufo.org/api/by-archive.json',
+    },
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/atom+xml',
+      contentUrl: 'https://realufo.org/feeds/aaro.xml',
+    },
+  ],
+};
 ---
 <RootLayout
   archiveSlug="aaro"
@@ -92,6 +127,7 @@ const description = 'Offline archival mirror of aaro.mil — official UAP imager
   totalRecords={stats.total}
   lastUpdated="2026-05-27"
 >
+  <script slot="head-extra" is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
   <section class="hero" id="intro">
     <div class="container">
       <div class="coords">38°52′15″N, 77°03′18″W · OFFICE OF THE UNDER SECRETARY OF DEFENSE FOR INTELLIGENCE &amp; SECURITY</div>

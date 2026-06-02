@@ -197,3 +197,7 @@
 /uk/story.html /stories/uk-overview/ 301
 /uruguay/story.html /stories/uruguay-overview/ 301
 /whatsnew.html /whatsnew/ 301
+
+# === Phase 04.1 — Retired orphan Wayback partial-port pages (2026-06-02) ===
+/aaro/pages/* /aaro/ 301
+/nara/pages/* /nara/ 301

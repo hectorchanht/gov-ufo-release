@@ -1,0 +1,21 @@
+---
+// StructuredData.astro — emit JSON-LD via BaseHead `<slot name="head-extra" />`.
+//
+// Usage:
+//   <RootLayout ...>
+//     <StructuredData slot="head-extra" schema={websiteSchema} />
+//   </RootLayout>
+//
+// Surfaced by /gsd:debug link-asset-seo-audit (2026-06-02) — TODO
+// `2026-06-02-jsonld-structured-data.md`. Schema types covered by helpers:
+//   - websiteSchema (homepage) — WebSite + SearchAction
+//   - collectionPageSchema(items) — /stories/ index
+//   - articleSchema(entry) — /stories/{slug}/
+//   - datasetSchema(archive) — /aaro/, /nasa/, /nara/ (CLAUDE.md §13)
+
+interface Props {
+  schema: unknown;
+}
+const { schema } = Astro.props;
+---
+<script type="application/ld+json" set:html={JSON.stringify(schema)}></script>

@@ -94,7 +94,15 @@ def extract(html_path: str) -> dict | None:
     is_story = html_path.endswith('/story.html')
     kind = 'story' if is_story else 'case'
     label = ARCHIVE_LABEL.get(archive, archive)
-    rel_url = '/' + html_path
+    # Phase 04.1: case stories live at /stories/{slug}/ (Plan 04.1-03).
+    # `/aaro/tic-tac.html` → `/stories/tic-tac/`; `/aaro/story.html` →
+    # `/stories/aaro-overview/`. Same rewrite shape as build-geo.py (8b053c0).
+    leaf = html_path.rsplit('/', 1)[-1].removesuffix('.html')
+    if is_story:
+        case_slug = f'{archive}-overview'
+    else:
+        case_slug = leaf
+    rel_url = f'/stories/{case_slug}/'
     return {
         'title':       title,
         'desc':        desc,

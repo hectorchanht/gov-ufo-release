@@ -119,6 +119,35 @@ const description = bodyHtml
 
 const pageTitle = `${entry.title} — ${source.name} · realufo.org`;
 
+// JSON-LD Article schema (Phase 04.1 audit `jsonld-structured-data`).
+const storyUrl = `https://realufo.org/stories/${entry.slug}/`;
+const datePublished = entry.incidentDate || '2026-01-01';
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: entry.title,
+  description: description || `${entry.title} — case file from ${source.name}.`,
+  url: storyUrl,
+  datePublished,
+  dateModified: datePublished,
+  inLanguage: 'en',
+  publisher: {
+    '@type': 'Organization',
+    name: 'realufo.org',
+    url: 'https://realufo.org',
+    logo: { '@type': 'ImageObject', url: 'https://realufo.org/assets/favicon.svg' },
+  },
+  author: { '@type': 'GovernmentOrganization', name: source.name, url: source.url },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': storyUrl },
+  image: 'https://realufo.org/assets/favicon.svg',
+  isPartOf: {
+    '@type': 'CollectionPage',
+    url: 'https://realufo.org/stories/',
+    name: 'Stories — realufo.org',
+  },
+  keywords: ['UAP', 'UFO', archive, source.name, 'public domain'],
+};
+
 // Featured-archive sibling picker for the "Related" rail — show up to 2
 // other stories from the same archive (excluding self), sorted by `order`.
 const siblings = (stories as StoryEntry[])
@@ -132,6 +161,8 @@ const siblings = (stories as StoryEntry[])
   title={pageTitle}
   description={description || `${entry.title} — case file from ${source.name}.`}
 >
+  <script slot="head-extra" is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
+
   <section class="hero">
     <div class="container">
       <div class="coords">◉ {source.name}{entry.incidentDate ? ` · ${entry.incidentDate}` : ''}</div>

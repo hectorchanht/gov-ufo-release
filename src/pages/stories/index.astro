@@ -70,6 +70,27 @@ const featuredCount = allStories.filter((s) => s.featured).length;
 
 const title = 'Stories — realufo.org';
 const description = 'Curated case narratives from official government UAP sources.';
+
+// JSON-LD CollectionPage schema (Phase 04.1 audit `jsonld-structured-data`).
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  url: 'https://realufo.org/stories/',
+  description,
+  inLanguage: 'en',
+  publisher: {
+    '@type': 'Organization',
+    name: 'realufo.org',
+    url: 'https://realufo.org',
+    logo: { '@type': 'ImageObject', url: 'https://realufo.org/assets/favicon.svg' },
+  },
+  hasPart: stories.map((s) => ({
+    '@type': 'Article',
+    url: `https://realufo.org/stories/${s.slug}/`,
+    headline: s.title,
+  })),
+};
 ---
 <RootLayout
   archiveSlug="wargov"
@@ -77,6 +98,7 @@ const description = 'Curated case narratives from official government UAP source
   title={title}
   description={description}
 >
+  <script slot="head-extra" is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
   <section class="hero">
     <div class="container">
       <div class="coords">◉ realufo.org · curated case archive</div>

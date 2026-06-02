@@ -126,26 +126,48 @@ const jsonLd = {
   totalRecords={totalRecords}
   lastUpdated="2026-05-27"
 >
-  {/* JSON-LD structured data — Plan 03-04 BaseHead exposes a head-extra slot. */}
+  {/* JSON-LD structured data — Plan 03-04 BaseHead exposes a head-extra slot.
+      Dataset schema for the wargov corpus + WebSite + SearchAction for the
+      site root (Phase 04.1 audit TODO `jsonld-structured-data`). */}
   <script
     slot="head-extra"
     is:inline
     type="application/ld+json"
     set:html={JSON.stringify(jsonLd)}
   ></script>
+  <script
+    slot="head-extra"
+    is:inline
+    type="application/ld+json"
+    set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'realufo.org',
+      alternateName: 'realufo · Government UAP Archive',
+      url: 'https://realufo.org',
+      description: 'Offline-first archive of every official government UAP source.',
+      inLanguage: 'en',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: 'https://realufo.org/search/?q={search_term_string}',
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    })}
+  ></script>
 
   <section class="hero" id="intro">
     <div class="container">
       <div class="coords">38°52′15″N, 77°03′18″W &middot; THE PENTAGON, ARLINGTON, VIRGINIA</div>
-      <div class="flex">
-        <h1 class="hero-title">
-          Presidential Unsealing and Reporting System for UAP Encounters <span class="acronym">(PURSUE)</span>
-        </h1>
-        <div class="classified-stamp">
-          DECLASSIFIED
-          <small>RELEASES 01 + 02 / 2026</small>
-        </div>
+      <div class="classified-stamp">
+        DECLASSIFIED
+        <small>RELEASES 01 + 02 / 2026</small>
       </div>
+      <h1 class="hero-title">
+        Presidential Unsealing and Reporting System for UAP Encounters <span class="acronym">(PURSUE)</span>
+      </h1>
       <p class="hero-sub">
         Official Department of War &middot; ODNI release of declassified UAP records under President
         Trump's transparency directive of February 19, 2026.

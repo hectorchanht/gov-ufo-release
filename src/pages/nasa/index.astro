@@ -74,6 +74,41 @@ function slugify(text: string): string {
 // nasa/index.html <meta name="description"> content verbatim.
 const title = 'NASA UAP Independent Study Team | realufo.org';
 const description = "Offline mirror of NASA's UAP Independent Study Team final report, briefings, and public meeting record.";
+
+// JSON-LD Dataset schema (Phase 04.1 audit `jsonld-structured-data`).
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: 'NASA UAP Independent Study',
+  description,
+  url: 'https://realufo.org/nasa/',
+  inLanguage: 'en',
+  license: 'https://creativecommons.org/publicdomain/mark/1.0/',
+  isAccessibleForFree: true,
+  publisher: {
+    '@type': 'Organization',
+    name: 'realufo.org',
+    url: 'https://realufo.org',
+    logo: { '@type': 'ImageObject', url: 'https://realufo.org/assets/favicon.svg' },
+  },
+  creator: {
+    '@type': 'GovernmentOrganization',
+    name: 'NASA UAP Independent Study',
+    url: 'https://science.nasa.gov/uap/',
+  },
+  distribution: [
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/json',
+      contentUrl: 'https://realufo.org/api/by-archive.json',
+    },
+    {
+      '@type': 'DataDownload',
+      encodingFormat: 'application/atom+xml',
+      contentUrl: 'https://realufo.org/feeds/nasa.xml',
+    },
+  ],
+};
 ---
 <RootLayout
   archiveSlug="nasa"
@@ -82,9 +117,10 @@ const description = "Offline mirror of NASA's UAP Independent Study Team final r
   totalRecords={stats.total}
   lastUpdated="2026-05-27"
 >
+  <script slot="head-extra" is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
   <section class="hero" id="intro">
     <div class="container">
-      <div class="coords">38°53′00″N, 77°00′59″W · NASA HQ · MARY W. JACKSON BUILDING, WASHINGTON, D.C.</div>
+      <div class="coords">38°52′59″N, 77°01′00″W · NASA HQ · MARY W. JACKSON BUILDING, WASHINGTON, D.C.</div>
       <h1 class="hero-title">NASA UAP <em>Independent</em> Study</h1>
       <p class="hero-sub">In June 2022 NASA commissioned a 16-member independent study team led by astrophysicist
         Dr. David Spergel to examine unidentified anomalous phenomena from a strictly scientific
