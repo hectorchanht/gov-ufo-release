@@ -1,10 +1,13 @@
 ---
 slug: site-pages-broken-round2
-status: investigating
+status: resolved
 trigger: "map page still empty content, whatsnew page all link should be working but some is not. glossary input on the q should filter the content"
 created: 2026-06-02
+updated: 2026-06-02
 phase: 04.1-legacy-reorg-stories-site-pages-nav-surface
 prior_session: site-pages-broken
+related_commits:
+  - 49906bc fix(04.1): map height + glossary filter css + dev-link rewrite + ship api/feeds
 ---
 
 # Debug Session: site-pages-broken-round2
