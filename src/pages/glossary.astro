@@ -4,8 +4,9 @@
 // legacy/glossary.html at build time.
 //
 // Same pipeline as about.astro — see that file's header for the full
-// contract. preserveScripts: false (prose-only). pageType="site-page"
-// forces Pagefind body marker (B-1 fix).
+// contract. preserveScripts: true (legacy inline filter JS — local DOM,
+// no relative-URL fetches so no <base href="/"> needed). pageType="site-page"
+// forces Pagefind body marker (B-1 fix). Hotfix 2026-06-02 flipped flag.
 
 import RootLayout from '../layouts/RootLayout.astro';
 import sitePages from '../data/site-pages.json';

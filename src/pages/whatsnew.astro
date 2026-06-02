@@ -4,7 +4,8 @@
 // from legacy/whatsnew.html at build time.
 //
 // Same pipeline as about.astro — see that file's header for the full
-// contract. preserveScripts: false (prose-only release log).
+// contract. preserveScripts: true (release log fetches archive feeds +
+// per-archive manifests via relative URLs — see hotfix 2026-06-02).
 // pageType="site-page" forces Pagefind body marker (B-1 fix).
 
 import RootLayout from '../layouts/RootLayout.astro';
@@ -26,6 +27,12 @@ const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts })
   title={`${entry.title} — realufo.org`}
   description={entry.subtitle}
 >
+  {/* Hotfix 2026-06-02: legacy script fetches per-archive feeds via
+      relative paths (`aaro/feed.atom`). Route move to `/whatsnew/`
+      broke relative resolution → empty list. <base href="/"> restores
+      legacy resolution. See .planning/debug/site-pages-broken.md. */}
+  <base slot="head-extra" href="/" />
+
   <section class="hero">
     <div class="container">
       <h1 class="hero-title">{entry.title}</h1>

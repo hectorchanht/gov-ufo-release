@@ -59,6 +59,13 @@ const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts })
   title={`${entry.title} — realufo.org`}
   description={entry.subtitle}
 >
+  {/* Hotfix 2026-06-02: legacy init script uses relative URLs (dir:'aaro/').
+      Pre-04.1 page lived at `/map.html` so relatives resolved from `/`.
+      After 04.1 moved route to `/map/`, same relatives resolved to `/map/aaro/`
+      → 404 → silent fetch failure → no pins. <base href="/"> re-anchors all
+      relative URLs to site root. MUST be first head-extra element. See
+      .planning/debug/site-pages-broken.md for full root-cause. */}
+  <base slot="head-extra" href="/" />
   <link slot="head-extra" rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css" />
   <script slot="head-extra" src="/assets/vendor/leaflet/leaflet.js" is:inline></script>
 

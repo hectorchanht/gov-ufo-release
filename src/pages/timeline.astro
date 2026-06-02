@@ -48,6 +48,12 @@ const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts })
   title={`${entry.title} — realufo.org`}
   description={entry.subtitle}
 >
+  {/* Hotfix 2026-06-02: legacy init fetches each archive's index.html via
+      relative paths (`aaro/index.html`). Route move to `/timeline/` broke
+      relative resolution → 404 → empty timeline. <base href="/"> restores
+      legacy resolution. See .planning/debug/site-pages-broken.md. */}
+  <base slot="head-extra" href="/" />
+
   <section class="hero">
     <div class="container">
       <h1 class="hero-title">{entry.title}</h1>

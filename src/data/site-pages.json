@@ -18,7 +18,7 @@
     "title": "Glossary",
     "subtitle": "UAP terminology · agencies · classification systems.",
     "legacyPath": "legacy/glossary.html",
-    "preserveScripts": false
+    "preserveScripts": true
   },
   {
     "slug": "map",
@@ -39,6 +39,6 @@
     "title": "What's New",
     "subtitle": "Release log · recent additions to the archive.",
     "legacyPath": "legacy/whatsnew.html",
-    "preserveScripts": false
+    "preserveScripts": true
   }
 ]

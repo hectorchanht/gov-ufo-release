@@ -107,6 +107,24 @@ const CASCADE: ReadonlyArray<{ re: RegExp; name: string; filePath?: RegExp }> = 
     re: /<main\b[^>]*>([\s\S]*?)<script\s+id=["']nav-script-shared["']/i,
     name: 'timeline.html cascade-3c (main + body-tail scripts)',
   },
+  // Cascade-3d (hotfix 2026-06-02) — legacy/glossary.html and legacy/whatsnew.html
+  // BOTH have <main> but all their interactive <script> blocks (filter logic,
+  // archive-fetch+render logic) sit AFTER </main> in the legacy body, before
+  // the nav-script-shared sentinel. Cascade-1 (<main>...</main>) would truncate
+  // those scripts → broken interactivity even with preserveScripts: true.
+  // Same pattern as timeline.html cascade-3c: anchor from <main> through the
+  // body-tail right up to (but not including) the nav-script-shared block.
+  // See .planning/debug/site-pages-broken.md for full root-cause.
+  {
+    filePath: /(^|\/)glossary\.html$/,
+    re: /<main\b[^>]*>([\s\S]*?)<script\s+id=["']nav-script-shared["']/i,
+    name: 'glossary.html cascade-3d (main + body-tail scripts)',
+  },
+  {
+    filePath: /(^|\/)whatsnew\.html$/,
+    re: /<main\b[^>]*>([\s\S]*?)<script\s+id=["']nav-script-shared["']/i,
+    name: 'whatsnew.html cascade-3d (main + body-tail scripts)',
+  },
   // Future per-file selectors (e.g. legacy/aaro/details.html cascade-3a
   // — `<div class="container">`) would go here with their own
   // filePath guards.
