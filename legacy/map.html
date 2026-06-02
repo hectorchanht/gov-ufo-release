@@ -183,24 +183,18 @@ window.addEventListener('DOMContentLoaded', function() {
 (function() {
   'use strict';
 
-  /* Country centroid + archive metadata. Pins land at the archive headquarters
-     city where possible (e.g. AARO in Arlington, GEIPAN in Toulouse). */
+  /* Active-archive HQ markers — Phase 04.1 scope pivot (CLAUDE.md §2):
+     realufo.org ships only 4 active archives (wargov, aaro, nasa, nara).
+     The 11 dormant national entries (geipan, uk, brazil, chile, argentina,
+     canada, italy, nz, peru, spain, uruguay) were removed 2026-06-02 —
+     they pointed at /<archive>/ paths that are direct-URL-only and
+     shouldn't surface in the user-facing map.
+     Re-adding a dormant entry on activation = 1-line restore here. */
   var ARCHIVES = [
     { id:'wargov',    label:'War.gov / PURSUE',         dir:'/',           lat: 38.8951, lon: -77.0364 },
     { id:'aaro',      label:'AARO',                     dir:'aaro/',       lat: 38.8703, lon: -77.0566 },
     { id:'nasa',      label:'NASA UAP Study',           dir:'nasa/',       lat: 38.8830, lon: -77.0163 },
-    { id:'nara',      label:'NARA',                     dir:'nara/',       lat: 38.8929, lon: -77.0227 },
-    { id:'geipan',    label:'France · GEIPAN (CNES)',   dir:'geipan/',     lat: 43.6047, lon:   1.4442 },
-    { id:'uk',        label:'UK · National Archives',   dir:'uk/',         lat: 51.4810, lon:  -0.2790 },
-    { id:'brazil',    label:'Brazil · FAB',             dir:'brazil/',     lat:-15.7942, lon: -47.8825 },
-    { id:'chile',     label:'Chile · SEFAA',            dir:'chile/',      lat:-33.4489, lon: -70.6693 },
-    { id:'argentina', label:'Argentina · CEFAe',        dir:'argentina/',  lat:-34.6037, lon: -58.3816 },
-    { id:'canada',    label:'Canada · LAC / Magnet',    dir:'canada/',     lat: 45.4215, lon: -75.6972 },
-    { id:'italy',     label:'Italy · Aeronautica',      dir:'italy/',      lat: 41.9028, lon:  12.4964 },
-    { id:'nz',        label:'NZ · NZDF',                dir:'nz/',         lat:-41.2865, lon: 174.7762 },
-    { id:'peru',      label:'Peru · OIFAA',             dir:'peru/',       lat:-12.0464, lon: -77.0428 },
-    { id:'spain',     label:'Spain · Ejército del Aire',dir:'spain/',      lat: 40.4168, lon:  -3.7038 },
-    { id:'uruguay',   label:'Uruguay · CRIDOVNI',       dir:'uruguay/',    lat:-34.9011, lon: -56.1645 }
+    { id:'nara',      label:'NARA',                     dir:'nara/',       lat: 38.8929, lon: -77.0227 }
   ];
 
   function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
