@@ -15,16 +15,66 @@
 // back to wargov for any dormant archive that briefly renders the Nav
 // (e.g. nz/uruguay legacy pages preserved for direct-URL access).
 //
-// CLAUDE.md §11 don't: NO inline ↗ arrow in header links (reserved for footer
-// external sources). Internal archive-to-archive links only here.
+// CLAUDE.md §11 don't: NO inline upper-right arrow (U+2197) in header links
+// (reserved for footer external sources). Internal archive-to-archive links
+// only here. The single-direction right-arrow (U+2192) on "All stories" is
+// the internal-flow "more" marker per UI-SPEC §2.1 — a different glyph from
+// the forbidden external-link upper-right arrow (U+2197).
+//
+// Phase 04.1 — STORIES ▾ + ABOUT ▾ dropdowns added (Plan 04.1-05).
+// • STORIES panel: 8 featured stories from src/data/stories.json, divider,
+//   "All stories →" link.
+// • ABOUT panel: 6 fixed site-page entries mirroring src/data/site-pages.json.
+// Desktop: pure CSS `:hover` + `:focus-within` reveal (no JS framework).
+// Mobile (<720 px): the dropdown trigger becomes a collapsible section header
+// inside the open hamburger menu — `<script is:inline>` toggles aria-expanded
+// + `.open` on the parent <li>.
 
 import type { ArchiveSlug } from '../layouts/RootLayout.astro';
+import stories from '../data/stories.json';
 
 interface Props {
   archiveSlug: ArchiveSlug;
 }
 
 const { archiveSlug } = Astro.props;
+
+// Phase 04.1 W-3 gate: featured order must be unique {1..8}. Reading
+// src/data/stories.json at build time means any drift (missing featured
+// flag, duplicate order, gap in the sequence) fails the build here
+// rather than producing a half-rendered nav surface.
+const FEATURED_STORIES = stories
+  .filter((s) => s.featured === true)
+  .sort((a, b) => a.order - b.order);
+
+{
+  const orders = FEATURED_STORIES.map((s) => s.order);
+  const unique = new Set(orders);
+  const ok =
+    FEATURED_STORIES.length === 8 &&
+    unique.size === 8 &&
+    orders[0] === 1 &&
+    orders[orders.length - 1] === 8;
+  if (!ok) {
+    throw new Error(
+      `[Nav.astro] Featured-story W-3 gate failed: expected 8 featured stories with unique order 1..8, got ${
+        FEATURED_STORIES.length
+      } entries with orders ${JSON.stringify(orders)}`,
+    );
+  }
+}
+
+// Fixed list — order = display order. Mirrors src/data/site-pages.json
+// (duplication intentional: keeps Nav.astro decoupled from the JSON for
+// label-only display tweaks). Footer.astro carries the same shape.
+const ABOUT_PAGES = [
+  { slug: 'about',     label: 'About' },
+  { slug: 'foia',      label: 'FOIA' },
+  { slug: 'glossary',  label: 'Glossary' },
+  { slug: 'map',       label: 'Map' },
+  { slug: 'timeline',  label: 'Timeline' },
+  { slug: 'whatsnew',  label: "What's New" },
+] as const;
 
 // 4-archive active cross-nav (post-2026-05-28 scope pivot). Each <a>
 // emits the slug verbatim via `data-archive=` for consistency with the
@@ -88,6 +138,66 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
               </a>
             </li>
           ))}
+          {/* Phase 04.1 — STORIES ▾ dropdown. 8 featured stories from
+              src/data/stories.json + divider + "All stories →". UI-SPEC §2.1.
+              Desktop reveal via pure CSS (:hover, :focus-within); mobile
+              reveal via the inline <script> below that toggles `.open` on
+              this <li> for taps in the hamburger menu. */}
+          <li class="nav-dropdown" data-dropdown="stories">
+            <button
+              class="nav-dropdown-trigger"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="nav-dd-stories-panel"
+              id="nav-dd-stories"
+            >
+              Stories <span aria-hidden="true" class="dd-chev">▾</span>
+            </button>
+            <ul
+              class="nav-dropdown-panel"
+              role="menu"
+              id="nav-dd-stories-panel"
+              aria-labelledby="nav-dd-stories"
+            >
+              {FEATURED_STORIES.map((s) => (
+                <li role="none">
+                  <a role="menuitem" href={`/stories/${s.slug}/`}>{s.title}</a>
+                </li>
+              ))}
+              <li class="nav-dropdown-divider" role="separator" aria-hidden="true"></li>
+              <li role="none">
+                <a role="menuitem" href="/stories/" class="nav-dropdown-all">All stories →</a>
+              </li>
+            </ul>
+          </li>
+          {/* Phase 04.1 — ABOUT ▾ dropdown. 6 site-page entries; order = display
+              order per UI-SPEC §2.2. Same desktop/mobile reveal pattern as
+              STORIES ▾. */}
+          <li class="nav-dropdown" data-dropdown="about">
+            <button
+              class="nav-dropdown-trigger"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="nav-dd-about-panel"
+              id="nav-dd-about"
+            >
+              About <span aria-hidden="true" class="dd-chev">▾</span>
+            </button>
+            <ul
+              class="nav-dropdown-panel"
+              role="menu"
+              id="nav-dd-about-panel"
+              aria-labelledby="nav-dd-about"
+            >
+              {ABOUT_PAGES.map((p) => (
+                <li role="none">
+                  <a role="menuitem" href={`/${p.slug}/`}>{p.label}</a>
+                </li>
+              ))}
+            </ul>
+          </li>
           {/* Page-level intra-archive anchors (Headlines / Archive / etc.) are
               page-injected via <slot name="nav-extra" /> so this component
               stays archive-agnostic. */}
@@ -114,10 +224,52 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
       var open = primaryNav.classList.toggle('open');
       navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
+
+    // Mobile-only dropdown toggle. Desktop uses pure CSS (:hover, :focus-
+    // within) so we only intercept clicks below the 720 px breakpoint per
+    // CLAUDE.md §8 — the same breakpoint that surfaces the hamburger.
+    var MOBILE_MQ = '(max-width: 719.98px)';
+    function isMobile() {
+      return window.matchMedia && window.matchMedia(MOBILE_MQ).matches;
+    }
+    var triggers = primaryNav.querySelectorAll('.nav-dropdown-trigger');
+    for (var i = 0; i < triggers.length; i++) {
+      var t = triggers[i];
+      if (t.dataset.wired) continue;
+      t.dataset.wired = '1';
+      t.addEventListener('click', function (ev) {
+        if (!isMobile()) return; // desktop: defer to CSS
+        ev.preventDefault();
+        ev.stopPropagation();
+        var li = ev.currentTarget.closest('.nav-dropdown');
+        if (!li) return;
+        var open = li.classList.toggle('open');
+        ev.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      t.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') {
+          var li = ev.currentTarget.closest('.nav-dropdown');
+          if (li && li.classList.contains('open')) {
+            li.classList.remove('open');
+            ev.currentTarget.setAttribute('aria-expanded', 'false');
+            ev.currentTarget.focus();
+          }
+        }
+      });
+    }
+
     primaryNav.addEventListener('click', function (e) {
       if (e.target && e.target.tagName === 'A') {
         primaryNav.classList.remove('open');
         navToggle.setAttribute('aria-expanded', 'false');
+        // Also close any open dropdown panel — the link is about to navigate
+        // and a stale `.open` flag would re-show the panel on bfcache restore.
+        var openDD = primaryNav.querySelectorAll('.nav-dropdown.open');
+        for (var j = 0; j < openDD.length; j++) {
+          openDD[j].classList.remove('open');
+          var trig = openDD[j].querySelector('.nav-dropdown-trigger');
+          if (trig) trig.setAttribute('aria-expanded', 'false');
+        }
       }
     });
   })();

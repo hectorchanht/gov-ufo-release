@@ -210,6 +210,144 @@ nav.primary a[aria-current="page"] {
   nav.primary a { padding: 14px 0; width: 100%; } /* > 44px on touch */
 }
 
+/* === Phase 04.1 — STORIES ▾ + ABOUT ▾ dropdowns =========================
+   Two CSS-driven dropdown groups inside nav.primary. Desktop reveal via
+   pure CSS (:hover + :focus-within); mobile collapsible via JS toggling
+   `.open` on the parent <li>. UI-SPEC §2.1 + §2.2, CLAUDE.md §3.3 / §8 /
+   §11. No inline ↗ in any item — internal-flow `→` only on "All stories →".
+   ======================================================================== */
+
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 0;
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 12px 0;
+  min-height: 44px;          /* CLAUDE.md §8 — 44 px touch target */
+  line-height: 1;
+}
+.nav-dropdown-trigger:hover,
+.nav-dropdown-trigger:focus-visible {
+  color: var(--caution);
+}
+
+.dd-chev {
+  font-size: 0.85em;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.nav-dropdown-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;                  /* right-align to avoid viewport overflow */
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--rule-strong);
+  padding: 8px 0;
+  list-style: none;
+  margin: 0;
+  z-index: 50;
+}
+
+.nav-dropdown:hover .nav-dropdown-panel,
+.nav-dropdown:focus-within .nav-dropdown-panel,
+.nav-dropdown.open .nav-dropdown-panel {
+  display: block;
+}
+
+.nav-dropdown-panel li {
+  list-style: none;
+}
+
+.nav-dropdown-panel a {
+  display: block;
+  padding: 10px 16px;
+  min-height: 44px;          /* CLAUDE.md §8 — 44 px touch target */
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  line-height: 1.4;
+  text-transform: none;
+}
+.nav-dropdown-panel a:hover,
+.nav-dropdown-panel a:focus-visible {
+  background: rgba(232, 227, 216, 0.06);
+  color: var(--caution);
+}
+
+.nav-dropdown-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-dropdown-all {
+  color: var(--ink) !important;
+  font-weight: 500;
+}
+
+/* Mobile reveal: dropdown trigger acts as collapsible section header inside
+   the hamburger menu. UI-SPEC §2.2 — header uppercase 11 px / 0.24 em / faint
+   ink; chevron rotates 180° when expanded; sub-items indent 16 px. */
+@media (max-width: 719.98px) {
+  .nav-dropdown {
+    display: block;
+    width: 100%;
+  }
+  .nav-dropdown-trigger {
+    width: 100%;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-top: 1px solid var(--rule);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    color: var(--ink-faint);
+  }
+  .nav-dropdown-trigger[aria-expanded="true"] .dd-chev {
+    transform: rotate(180deg);
+  }
+  .nav-dropdown-panel {
+    position: static;
+    display: none;
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    min-width: 0;
+    max-width: none;
+  }
+  .nav-dropdown.open .nav-dropdown-panel {
+    display: block;
+  }
+  .nav-dropdown-panel a {
+    padding: 12px 16px;       /* preserve 44 px touch target on mobile */
+    min-height: 44px;
+  }
+  .nav-dropdown-all {
+    /* match other sub-items on mobile rather than dominating */
+    font-weight: 500;
+  }
+}
+
 /* ── Archive grid (CLAUDE.md §4 + §8) ────────────────────────────────────── */
 .arch-grid {
   display: grid;
