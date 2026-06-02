@@ -140,9 +140,11 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
           ))}
           {/* Phase 04.1 — STORIES ▾ dropdown. 8 featured stories from
               src/data/stories.json + divider + "All stories →". UI-SPEC §2.1.
-              Desktop reveal via pure CSS (:hover, :focus-within); mobile
-              reveal via the inline <script> below that toggles `.open` on
-              this <li> for taps in the hamburger menu. */}
+              Visibility is JS-driven via `aria-expanded` + `hidden`. CSS no
+              longer uses `:hover` or `:focus-within` to reveal — those caused
+              both panels to render simultaneously when focus moved between
+              them (Phase 04.1 hotfix). The inline controller below enforces
+              single-open invariant + outside-click close + Esc close. */}
           <li class="nav-dropdown" data-dropdown="stories">
             <button
               class="nav-dropdown-trigger"
@@ -159,21 +161,21 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
               role="menu"
               id="nav-dd-stories-panel"
               aria-labelledby="nav-dd-stories"
+              hidden
             >
               {FEATURED_STORIES.map((s) => (
                 <li role="none">
-                  <a role="menuitem" href={`/stories/${s.slug}/`}>{s.title}</a>
+                  <a role="menuitem" tabindex="-1" href={`/stories/${s.slug}/`}>{s.title}</a>
                 </li>
               ))}
               <li class="nav-dropdown-divider" role="separator" aria-hidden="true"></li>
               <li role="none">
-                <a role="menuitem" href="/stories/" class="nav-dropdown-all">All stories →</a>
+                <a role="menuitem" tabindex="-1" href="/stories/" class="nav-dropdown-all">All stories →</a>
               </li>
             </ul>
           </li>
           {/* Phase 04.1 — ABOUT ▾ dropdown. 6 site-page entries; order = display
-              order per UI-SPEC §2.2. Same desktop/mobile reveal pattern as
-              STORIES ▾. */}
+              order per UI-SPEC §2.2. Same JS-driven reveal pattern as STORIES ▾. */}
           <li class="nav-dropdown" data-dropdown="about">
             <button
               class="nav-dropdown-trigger"
@@ -190,10 +192,11 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
               role="menu"
               id="nav-dd-about-panel"
               aria-labelledby="nav-dd-about"
+              hidden
             >
               {ABOUT_PAGES.map((p) => (
                 <li role="none">
-                  <a role="menuitem" href={`/${p.slug}/`}>{p.label}</a>
+                  <a role="menuitem" tabindex="-1" href={`/${p.slug}/`}>{p.label}</a>
                 </li>
               ))}
             </ul>
@@ -214,64 +217,231 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
     book / component preview) where RootLayout's bottom-of-body script is
     absent. D-21..D-23 — <script is:inline>, no Vite bundling. */}
 <script is:inline>
+  /*
+   * Nav.astro dropdown controller — Phase 04.1 hotfix (2026-06-02).
+   *
+   * Replaces the prior CSS `:hover` + `:focus-within` + `.open` reveal model
+   * which allowed both STORIES ▾ and ABOUT ▾ to render simultaneously because
+   * `:focus-within` stuck after Tab into a panel and never auto-closed when
+   * another trigger was hovered/clicked.
+   *
+   * New invariants:
+   *   1. At most ONE dropdown open at any time (single-open).
+   *   2. Click trigger toggles. Click outside closes. Esc closes + restores focus.
+   *   3. Hover with 120 ms intent-delay opens; immediate close on mouse-leave
+   *      with 200 ms grace so cursor can travel from trigger to panel.
+   *   4. Tab focus into a dropdown trigger opens it; focus moving outside the
+   *      dropdown closes it.
+   *   5. Mobile (<720 px) — hamburger drawer mode: dropdowns become inline
+   *      collapsibles inside the drawer (no fly-out positioning).
+   *
+   * Visibility is driven ONLY by `aria-expanded` on the trigger + the `hidden`
+   * attribute on the panel. CSS no longer uses `:hover` / `:focus-within` to
+   * reveal panels — see global.css `.nav-dropdown-panel` rules.
+   */
   (function () {
     var navToggle = document.getElementById('nav-toggle');
     var primaryNav = document.getElementById('primary-nav');
     if (!navToggle || !primaryNav) return;
-    if (navToggle.dataset.wired) return;
-    navToggle.dataset.wired = '1';
-    navToggle.addEventListener('click', function () {
-      var open = primaryNav.classList.toggle('open');
-      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
 
-    // Mobile-only dropdown toggle. Desktop uses pure CSS (:hover, :focus-
-    // within) so we only intercept clicks below the 720 px breakpoint per
-    // CLAUDE.md §8 — the same breakpoint that surfaces the hamburger.
+    // Idempotent — RootLayout.astro may also wire the hamburger from a global
+    // invariants script. dataset.wired guards both.
+    if (!navToggle.dataset.wired) {
+      navToggle.dataset.wired = '1';
+      navToggle.addEventListener('click', function () {
+        var open = primaryNav.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        // Hamburger close also closes any open dropdown so reopening is clean.
+        if (!open) closeAll();
+      });
+    }
+
     var MOBILE_MQ = '(max-width: 719.98px)';
     function isMobile() {
       return window.matchMedia && window.matchMedia(MOBILE_MQ).matches;
     }
-    var triggers = primaryNav.querySelectorAll('.nav-dropdown-trigger');
-    for (var i = 0; i < triggers.length; i++) {
-      var t = triggers[i];
-      if (t.dataset.wired) continue;
-      t.dataset.wired = '1';
-      t.addEventListener('click', function (ev) {
-        if (!isMobile()) return; // desktop: defer to CSS
-        ev.preventDefault();
-        ev.stopPropagation();
-        var li = ev.currentTarget.closest('.nav-dropdown');
-        if (!li) return;
-        var open = li.classList.toggle('open');
-        ev.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      t.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Escape') {
-          var li = ev.currentTarget.closest('.nav-dropdown');
-          if (li && li.classList.contains('open')) {
-            li.classList.remove('open');
-            ev.currentTarget.setAttribute('aria-expanded', 'false');
-            ev.currentTarget.focus();
-          }
-        }
-      });
+
+    var dropdowns = primaryNav.querySelectorAll('.nav-dropdown');
+    if (!dropdowns.length) return;
+
+    var openTimer = null;
+    var closeTimer = null;
+
+    function openDD(li) {
+      var trigger = li.querySelector('.nav-dropdown-trigger');
+      var panel = li.querySelector('.nav-dropdown-panel');
+      if (!trigger || !panel) return;
+      // Single-open invariant: close any other open dropdown first.
+      closeAllExcept(li);
+      trigger.setAttribute('aria-expanded', 'true');
+      panel.hidden = false;
+      li.classList.add('open');
+      // Enable arrow-key navigation inside the panel.
+      var items = panel.querySelectorAll('a[role="menuitem"]');
+      for (var i = 0; i < items.length; i++) items[i].setAttribute('tabindex', '0');
     }
 
-    primaryNav.addEventListener('click', function (e) {
-      if (e.target && e.target.tagName === 'A') {
-        primaryNav.classList.remove('open');
-        navToggle.setAttribute('aria-expanded', 'false');
-        // Also close any open dropdown panel — the link is about to navigate
-        // and a stale `.open` flag would re-show the panel on bfcache restore.
-        var openDD = primaryNav.querySelectorAll('.nav-dropdown.open');
-        for (var j = 0; j < openDD.length; j++) {
-          openDD[j].classList.remove('open');
-          var trig = openDD[j].querySelector('.nav-dropdown-trigger');
-          if (trig) trig.setAttribute('aria-expanded', 'false');
+    function closeDD(li, opts) {
+      var trigger = li.querySelector('.nav-dropdown-trigger');
+      var panel = li.querySelector('.nav-dropdown-panel');
+      if (!trigger || !panel) return;
+      trigger.setAttribute('aria-expanded', 'false');
+      panel.hidden = true;
+      li.classList.remove('open');
+      var items = panel.querySelectorAll('a[role="menuitem"]');
+      for (var i = 0; i < items.length; i++) items[i].setAttribute('tabindex', '-1');
+      if (opts && opts.restoreFocus) trigger.focus();
+    }
+
+    function closeAll() {
+      for (var i = 0; i < dropdowns.length; i++) closeDD(dropdowns[i]);
+    }
+
+    function closeAllExcept(keep) {
+      for (var i = 0; i < dropdowns.length; i++) {
+        if (dropdowns[i] !== keep) closeDD(dropdowns[i]);
+      }
+    }
+
+    function toggleDD(li) {
+      var trigger = li.querySelector('.nav-dropdown-trigger');
+      if (!trigger) return;
+      if (trigger.getAttribute('aria-expanded') === 'true') closeDD(li);
+      else openDD(li);
+    }
+
+    function cancelTimers() {
+      if (openTimer) { clearTimeout(openTimer); openTimer = null; }
+      if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    }
+
+    for (var i = 0; i < dropdowns.length; i++) {
+      (function (li) {
+        var trigger = li.querySelector('.nav-dropdown-trigger');
+        var panel = li.querySelector('.nav-dropdown-panel');
+        if (!trigger || !panel || trigger.dataset.wired) return;
+        trigger.dataset.wired = '1';
+
+        // Click toggles (works on both desktop and mobile).
+        trigger.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          cancelTimers();
+          toggleDD(li);
+        });
+
+        // Esc closes + restores focus to trigger.
+        trigger.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Escape') {
+            ev.stopPropagation();
+            closeDD(li, { restoreFocus: true });
+          } else if (ev.key === 'ArrowDown' || ev.key === 'Down') {
+            // Open + focus first item.
+            ev.preventDefault();
+            openDD(li);
+            var first = panel.querySelector('a[role="menuitem"]');
+            if (first) first.focus();
+          }
+        });
+
+        // Hover open (desktop only) — small intent delay prevents flicker.
+        li.addEventListener('mouseenter', function () {
+          if (isMobile()) return;
+          cancelTimers();
+          openTimer = setTimeout(function () { openDD(li); }, 120);
+        });
+        li.addEventListener('mouseleave', function () {
+          if (isMobile()) return;
+          cancelTimers();
+          // 200 ms grace so cursor can travel trigger → panel without snapping shut.
+          closeTimer = setTimeout(function () { closeDD(li); }, 200);
+        });
+
+        // Esc anywhere in panel closes.
+        panel.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Escape') {
+            ev.stopPropagation();
+            closeDD(li, { restoreFocus: true });
+            return;
+          }
+          // Arrow-key navigation between items.
+          var items = panel.querySelectorAll('a[role="menuitem"]');
+          if (!items.length) return;
+          var idx = -1;
+          for (var k = 0; k < items.length; k++) {
+            if (items[k] === document.activeElement) { idx = k; break; }
+          }
+          if (ev.key === 'ArrowDown' || ev.key === 'Down') {
+            ev.preventDefault();
+            items[(idx + 1) % items.length].focus();
+          } else if (ev.key === 'ArrowUp' || ev.key === 'Up') {
+            ev.preventDefault();
+            items[(idx - 1 + items.length) % items.length].focus();
+          } else if (ev.key === 'Home') {
+            ev.preventDefault();
+            items[0].focus();
+          } else if (ev.key === 'End') {
+            ev.preventDefault();
+            items[items.length - 1].focus();
+          } else if (ev.key === 'Tab') {
+            // Let Tab move naturally; focusout below will close once focus leaves.
+          }
+        });
+
+        // Focus leaves the dropdown (trigger + panel) → close. Use focusout +
+        // relatedTarget check so internal focus moves don't close prematurely.
+        li.addEventListener('focusout', function (ev) {
+          var next = ev.relatedTarget;
+          if (next && li.contains(next)) return; // still inside — leave open
+          // Schedule close on next tick so click handlers on items can navigate first.
+          setTimeout(function () {
+            if (!li.contains(document.activeElement)) closeDD(li);
+          }, 0);
+        });
+      })(dropdowns[i]);
+    }
+
+    // Outside click closes all dropdowns.
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      // If click landed inside any dropdown <li>, the trigger handler above
+      // owns the decision — bail.
+      for (var i = 0; i < dropdowns.length; i++) {
+        if (dropdowns[i].contains(t)) return;
+      }
+      closeAll();
+    });
+
+    // Esc on document closes whichever dropdown is open + restores focus.
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Escape') return;
+      for (var i = 0; i < dropdowns.length; i++) {
+        if (dropdowns[i].classList.contains('open')) {
+          closeDD(dropdowns[i], { restoreFocus: true });
+          return;
         }
       }
     });
+
+    // Clicking a link inside the drawer closes drawer + dropdown so bfcache
+    // restore doesn't leave a stale open state.
+    primaryNav.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a') : null;
+      if (!a) return;
+      // Skip if it's the trigger (which is a <button>, not <a> — closest('a') ignores it).
+      primaryNav.classList.remove('open');
+      navToggle.setAttribute('aria-expanded', 'false');
+      closeAll();
+    });
+
+    // Viewport crosses 720 px breakpoint — close any open dropdown so the
+    // desktop fly-out vs mobile collapsible models don't collide.
+    var mql = window.matchMedia ? window.matchMedia(MOBILE_MQ) : null;
+    if (mql) {
+      var onChange = function () { closeAll(); };
+      if (mql.addEventListener) mql.addEventListener('change', onChange);
+      else if (mql.addListener) mql.addListener(onChange); // Safari < 14
+    }
   })();
 </script>
 
