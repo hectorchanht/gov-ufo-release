@@ -178,7 +178,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Primary nav — CLAUDE.md §4.1 + §8 (inline ≥720, drawer below). */
 nav.primary { font-family: var(--mono); font-size: 13px; letter-spacing: 0.12em; }
-nav.primary ul { list-style: none; display: flex; gap: 18px; flex-wrap: wrap; }
+nav.primary > ul { list-style: none; display: flex; gap: 18px; flex-wrap: wrap; }
 nav.primary a {
   display: inline-block;
   padding: 12px 0; /* CLAUDE.md §8 — 44px touch target via padding */
@@ -206,7 +206,7 @@ nav.primary a[aria-current="page"] {
     overflow-y: auto;
   }
   nav.primary.open { display: block; }
-  nav.primary ul { flex-direction: column; gap: 0; }
+  nav.primary > ul { flex-direction: column; gap: 0; }
   nav.primary a { padding: 14px 0; width: 100%; } /* > 44px on touch */
 }
 
@@ -257,6 +257,15 @@ nav.primary a[aria-current="page"] {
  *
  * CSS now owns ONLY positioning + presentation — never visibility logic.
  */
+/* Defence-in-depth — make sure the dropdown panel honours the [hidden] attribute
+   even when an ancestor rule (e.g. nav.primary > ul, display:flex) would otherwise
+   raise specificity above the UA [hidden] { display:none } rule. Phase 04.1 fix
+   2026-06-02 — Bug 1 root cause: nav.primary ul descendant selector cascaded into
+   the panel <ul>, overriding [hidden] by specificity. The > combinator above
+   already scopes nav.primary > ul to direct children; this rule is the belt
+   that pairs with that braces. */
+.nav-dropdown-panel[hidden] { display: none !important; }
+
 .nav-dropdown-panel {
   position: absolute;
   top: 100%;
