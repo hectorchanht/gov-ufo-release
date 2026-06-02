@@ -131,10 +131,14 @@ def parse_case(rel: str) -> dict | None:
         date = pm.group(1)[:10]
 
     archive = rel.split('/', 1)[0]
+    # Phase 04.1: case stories live at /stories/{slug}/ (Plan 04.1-03).
+    # Strip archive directory + `.html` extension to derive the new slug.
+    # E.g. 'aaro/tic-tac.html' → '/stories/tic-tac/'.
+    case_slug = rel.rsplit('/', 1)[-1].removesuffix('.html')
     return {
         'kind': 'case',
         'archive': archive,
-        'href': '/' + rel,
+        'href': f'/stories/{case_slug}/',
         'lat': lat, 'lon': lon,
         'title': title, 'date': date, 'description': desc,
     }
