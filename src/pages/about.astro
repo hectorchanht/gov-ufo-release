@@ -38,7 +38,11 @@ const SLUG = 'about';
 const entry = sitePages.find((e) => e.slug === SLUG)!;
 const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
 const anchor = extractMain(raw, entry.legacyPath); // throws on no-anchor (B-3)
-const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts }); // B-4
+const bodyHtml = scrubChrome(anchor, {
+  preserveScripts: entry.preserveScripts,
+  sourcePath: entry.legacyPath,        // audit 2026-06-02: relative-link rewrites
+  stripBodyH1: true,                   // audit 2026-06-02: hero <h1> emitted by this page
+}); // B-4
 // W-4 fix: bodyHtml contains scripts ONLY from the anchor slice (never
 // from legacy <head>); for this slug preserveScripts is false so all
 // scripts are scrubbed regardless.

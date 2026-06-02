@@ -182,6 +182,242 @@ export interface ScrubOptions {
    * timeline scripts after extractor isolates them to the anchor slice).
    */
   preserveScripts?: boolean;
+  /**
+   * Repo-relative source path (e.g. `legacy/aaro/belgian-wave.html`).
+   * When provided, scrubChrome rewrites relative legacy URLs in the
+   * extracted body to their post-04.1 canonical forms (step 9 below).
+   * Without it, relative URLs are passed through unchanged — fine for
+   * site-page test fixtures that don't carry cross-archive links.
+   *
+   * Audit-driven 2026-06-02 (link-asset-seo-audit): adding this
+   * disambiguates `./tic-tac.html` (relative to source archive) from
+   * the otherwise-identical sibling-story rewrite target.
+   */
+  sourcePath?: string;
+  /**
+   * Stories pages emit their own `<h1>` from the Astro hero block, so
+   * the legacy body's `<h1>` would duplicate (SEO defect: two H1s per
+   * page). When `stripBodyH1: true`, scrubChrome demotes the FIRST
+   * `<h1>...</h1>` in the body to `<h2>...</h2>`. Subsequent H1s are
+   * preserved (none observed in practice — legacy bodies have exactly
+   * one).
+   *
+   * Audit-driven 2026-06-02 (link-asset-seo-audit).
+   */
+  stripBodyH1?: boolean;
+}
+
+// ============================================================
+// Legacy URL rewrite tables — audit-driven 2026-06-02.
+//
+// Pre-04.1 legacy HTML files cross-link via paths relative to their
+// source location (e.g. `../aaro/tic-tac.html`, `../search.html?q=X`,
+// `./gimbal.html`). After Plan 04.1-03/04 those slugs are served by
+// Astro at a NEW canonical URL — the relative paths no longer resolve
+// from the new URL location.
+//
+// `rewriteLegacyLinks()` below is the single source of truth that
+// maps every still-living legacy URL pattern to its post-04.1
+// canonical form. Verbatim text content (CLAUDE.md §9 trust boundary)
+// is preserved — only `href`/`src` URL values are touched.
+// ============================================================
+
+// Active archives reachable from Nav/Footer (CLAUDE.md §2 status table).
+// /{archive}/ URLs survive verbatim — only the path component changes
+// from relative to root-absolute.
+const ACTIVE_ARCHIVES = new Set(['aaro', 'nasa', 'nara']);
+// 'wargov' lives at `/` (CLAUDE.md §2) and rewrites from `../wargov/`
+// or `../` accordingly.
+
+// Dormant archives still served at /{archive}/index.html via
+// scripts/copy-legacy-archives.sh. URLs survive verbatim — same
+// relative-to-root-absolute rewrite as active.
+const DORMANT_ARCHIVES = new Set([
+  'geipan', 'uk', 'brazil', 'chile', 'argentina', 'canada',
+  'italy', 'nz', 'peru', 'spain', 'uruguay',
+]);
+
+// Site-page slugs (src/data/site-pages.json). Pre-04.1 lived at root
+// with `.html` (e.g. /about.html); post-04.1 canonical is /{slug}/.
+const SITE_PAGE_SLUGS = ['about', 'foia', 'glossary', 'map', 'timeline', 'whatsnew'];
+
+// Legacy `{archive}/{leaf}.html` -> canonical `/stories/{slug}/` map.
+// Source: src/data/stories.json (build-time read in callers; this
+// duplicate is intentional so scrubChrome stays dependency-free and
+// JSON-imports don't pollute the test surface). Update both when
+// adding a story.
+const LEGACY_TO_STORY: ReadonlyMap<string, string> = new Map([
+  ['aaro/belgian-wave.html', 'belgian-wave'],
+  ['aaro/cash-landrum.html', 'cash-landrum'],
+  ['aaro/coyne.html', 'coyne'],
+  ['aaro/gimbal.html', 'gimbal'],
+  ['aaro/jal-1628.html', 'jal-1628'],
+  ['aaro/ohare-2006.html', 'ohare-2006'],
+  ['aaro/phoenix-lights.html', 'phoenix-lights'],
+  ['aaro/stephenville.html', 'stephenville'],
+  ['aaro/story.html', 'aaro-overview'],
+  ['aaro/details.html', 'aaro-overview'],  // master case index — same target as legacy 301
+  ['aaro/tehran.html', 'tehran'],
+  ['aaro/tic-tac.html', 'tic-tac'],
+  ['aaro/travis-walton.html', 'travis-walton'],
+  ['argentina/story.html', 'argentina-overview'],
+  ['brazil/operacao-prato.html', 'operacao-prato'],
+  ['brazil/story.html', 'brazil-overview'],
+  ['brazil/trindade.html', 'trindade'],
+  ['brazil/varginha.html', 'varginha'],
+  ['canada/falcon-lake.html', 'falcon-lake'],
+  ['canada/shag-harbour.html', 'shag-harbour'],
+  ['canada/story.html', 'canada-overview'],
+  ['chile/el-bosque.html', 'el-bosque'],
+  ['chile/story.html', 'chile-overview'],
+  ['geipan/story.html', 'geipan-overview'],
+  ['geipan/trans-en-provence.html', 'trans-en-provence'],
+  ['geipan/valensole.html', 'valensole'],
+  ['italy/story.html', 'italy-overview'],
+  ['nara/chiles-whitted.html', 'chiles-whitted'],
+  ['nara/condon-committee.html', 'condon-committee'],
+  ['nara/levelland.html', 'levelland'],
+  ['nara/lubbock-lights.html', 'lubbock-lights'],
+  ['nara/mantell.html', 'mantell'],
+  ['nara/mcminnville.html', 'mcminnville'],
+  ['nara/robertson-panel.html', 'robertson-panel'],
+  ['nara/roswell.html', 'roswell'],
+  ['nara/socorro.html', 'socorro'],
+  ['nara/story.html', 'nara-overview'],
+  ['nasa/story.html', 'nasa-overview'],
+  ['nz/kaikoura.html', 'kaikoura'],
+  ['nz/story.html', 'nz-overview'],
+  ['peru/story.html', 'peru-overview'],
+  ['spain/manises.html', 'manises'],
+  ['spain/story.html', 'spain-overview'],
+  ['uk/cosford.html', 'cosford'],
+  ['uk/rendlesham.html', 'rendlesham'],
+  ['uk/story.html', 'uk-overview'],
+  ['uruguay/story.html', 'uruguay-overview'],
+]);
+
+// Parked utility pages (donate, embed, compare, stats). Plan 04.1-06
+// 301-redirects them to /about/. Rewrite legacy refs to the same target.
+const PARKED_TO_ABOUT = new Set(['donate', 'embed', 'compare', 'stats']);
+
+/**
+ * Internal: derive `{archive}` from a source path like `legacy/aaro/foo.html`.
+ * Returns undefined if the path doesn't match the legacy/<archive>/ shape.
+ */
+function sourceArchive(sourcePath?: string): string | undefined {
+  if (!sourcePath) return undefined;
+  const m = sourcePath.match(/^legacy\/([a-z]+)\//);
+  return m ? m[1] : undefined;
+}
+
+/**
+ * Rewrite every still-living legacy URL pattern in the extracted body
+ * to its post-04.1 canonical form. Idempotent — calling twice on the
+ * same input yields the same output.
+ *
+ * Verbatim text content (CLAUDE.md §9) is preserved — only `href` and
+ * `src` URL VALUES are rewritten. `<a>` link text is never touched.
+ *
+ * @internal — exported for unit tests; production callers go through scrubChrome.
+ */
+export function rewriteLegacyLinks(html: string, sourcePath?: string): string {
+  let out = html;
+  const archive = sourceArchive(sourcePath);
+
+  // Rewrite href/src attribute values in one regex pass so that we
+  // don't double-rewrite. The replacer inspects the URL, returns the
+  // rewritten form (or the original if no rule applies).
+  out = out.replace(
+    /(href|src)=(["'])([^"']+)\2/gi,
+    (match, attr, quote, url) => {
+      const rewritten = rewriteOneUrl(url, archive);
+      if (rewritten === url) return match;
+      return `${attr}=${quote}${rewritten}${quote}`;
+    },
+  );
+  return out;
+}
+
+function rewriteOneUrl(url: string, archive: string | undefined): string {
+  // Pass through fragments, mailto, javascript, data URIs, external.
+  if (!url) return url;
+  if (url.startsWith('#') || url.startsWith('mailto:') || url.startsWith('tel:')
+    || url.startsWith('javascript:') || url.startsWith('data:')
+    || url.startsWith('http://') || url.startsWith('https://')
+    || url.startsWith('//')) {
+    return url;
+  }
+
+  // Split path | query/fragment for cleaner pattern-matching.
+  const queryMatch = url.match(/^([^?#]*)([?#].*)?$/);
+  if (!queryMatch) return url;
+  const path = queryMatch[1];
+  const tail = queryMatch[2] || '';
+
+  // (1) /search.html (root-absolute or relative) -> /search/
+  //     Catches /search.html, ./search.html, ../search.html, ../../search.html.
+  if (/(^|\/)search\.html$/.test(path)) {
+    return `/search/${tail}`;
+  }
+
+  // (2) /<site-page>.html (root-absolute or relative) -> /<site-page>/
+  //     Catches /about.html, ../about.html, ./glossary.html etc.
+  for (const slug of SITE_PAGE_SLUGS) {
+    const re = new RegExp(`(^|/)${slug}\\.html$`);
+    if (re.test(path)) {
+      return `/${slug}/${tail}`;
+    }
+  }
+
+  // (3) Parked utility pages -> /about/
+  for (const slug of PARKED_TO_ABOUT) {
+    const re = new RegExp(`(^|/)${slug}\\.html$`);
+    if (re.test(path)) {
+      return `/about/${tail}`;
+    }
+  }
+
+  // (4) /manifest.webmanifest is a real artifact at dist root — leave it.
+  if (path === '/manifest.webmanifest') return url;
+
+  // (5) Cross-archive index: relative `../{archive}/` or `../{archive}/index.html`
+  //     -> root-absolute `/{archive}/`.
+  let m = path.match(/(^|\.\.\/)([a-z]+)\/(index\.html)?$/);
+  if (m) {
+    const slug = m[2];
+    if (ACTIVE_ARCHIVES.has(slug) || DORMANT_ARCHIVES.has(slug) || slug === 'wargov') {
+      if (slug === 'wargov') return `/${tail}`;
+      return `/${slug}/${tail}`;
+    }
+  }
+
+  // (6) Sibling story or cross-archive story: `./X.html`, `X.html` (bare),
+  //     `../{otherArchive}/X.html`. Match leaf `{archive}/{leaf}` against
+  //     LEGACY_TO_STORY.
+  //
+  //     6a — bare or `./` form: resolve against source archive.
+  m = path.match(/^(?:\.\/)?([a-z0-9-]+\.html)$/);
+  if (m && archive) {
+    const key = `${archive}/${m[1]}`;
+    const slug = LEGACY_TO_STORY.get(key);
+    if (slug) return `/stories/${slug}/${tail}`;
+  }
+
+  //     6b — `../{otherArchive}/X.html` form.
+  m = path.match(/^\.\.\/([a-z]+)\/([a-z0-9-]+\.html)$/);
+  if (m) {
+    const key = `${m[1]}/${m[2]}`;
+    const slug = LEGACY_TO_STORY.get(key);
+    if (slug) return `/stories/${slug}/${tail}`;
+  }
+
+  // (7) `../` to wargov landing -> `/`.
+  if (path === '../' || path === '../index.html') {
+    return `/${tail}`;
+  }
+
+  // No rewrite — pass through.
+  return url;
 }
 
 /**
@@ -196,6 +432,10 @@ export interface ScrubOptions {
  *   6. <div class="scanlines" …></div> — RootLayout emits its own
  *   7. inline `style="…"` attributes on any tag — would override the
  *      CLAUDE.md §3.2 palette
+ *   8. (audit 2026-06-02) <link rel="manifest"> in body — chrome leak
+ *   9. (audit 2026-06-02) legacy URL rewrite — see rewriteLegacyLinks()
+ *  10. (audit 2026-06-02) optional first-<h1> demotion when caller
+ *      already emits a hero `<h1>` (stripBodyH1: true)
  *
  * Idempotent: scrubChrome(scrubChrome(x)) === scrubChrome(x).
  *
@@ -209,6 +449,12 @@ export function scrubChrome(html: string, opts: ScrubOptions = {}): string {
   out = out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
   // 2. <link rel="stylesheet" …> — void element or self-closing.
   out = out.replace(/<link\b[^>]*\brel=["']?stylesheet["']?[^>]*\/?>/gi, '');
+  // 2b. <link rel="manifest" …> (audit 2026-06-02) — legacy chrome leak.
+  //     The PWA plugin emits its own manifest reference at the page
+  //     `<head>` via BaseHead/RootLayout. Embedded body manifest refs
+  //     would duplicate; if the legacy points at the now-emitted
+  //     /manifest.webmanifest fallback we still want it out of <body>.
+  out = out.replace(/<link\b[^>]*\brel=["']?manifest["']?[^>]*\/?>/gi, '');
   // 3a. <script id="nav-script-shared">…</script> — legacy "canonical
   //     nav-dropdown wiring" block injected by the retired
   //     scripts/sync-nav.py builder. Strips ALWAYS, regardless of
@@ -266,24 +512,33 @@ export function scrubChrome(html: string, opts: ScrubOptions = {}): string {
   //    §3.2 palette + per-archive --caution tone.
   out = out.replace(/\s+style=["'][^"']*["']/gi, '');
 
-  // 8. Legacy site-page link rewrite (Phase 04.1 hotfix 2026-06-02).
-  //    Pre-04.1 site pages lived at root with `.html` extension
-  //    (/about.html, /timeline.html, …). After 04.1 the canonical URL is
-  //    /<slug>/ with trailing slash. Production redirects (`_redirects`
-  //    via Plan 04.1-06) handle the 301 on Cloudflare Pages, but the
-  //    dev server (python http.server / wrangler pages dev) does NOT
-  //    honour _redirects — so legacy `<a href="/timeline.html">` 404s
-  //    during local UAT.
+  // 9. Legacy URL rewrite (audit 2026-06-02 — link-asset-seo-audit).
+  //    Replaces step 8 from the previous design with a comprehensive
+  //    rewrite that handles:
+  //      - Relative `../search.html?q=X` -> `/search/?q=X`
+  //      - Relative `../about.html` etc -> `/about/`
+  //      - Root-absolute `/about.html` etc -> `/about/`
+  //      - Cross-archive `../{archive}/` -> `/{archive}/`
+  //      - Sibling-story `./X.html`, `X.html`, `../{archive}/X.html`
+  //        -> `/stories/{slug}/` when X maps to a known story
+  //      - `../donate.html` and other parked utilities -> `/about/`
   //
-  //    Rewrite anchor `href`s and `src`s for the 6 site pages to the
-  //    new trailing-slash form. Verbatim text content is untouched
-  //    (CLAUDE.md §9 trust boundary — only URLs change, never prose).
-  const SITE_PAGE_SLUGS = ['about', 'foia', 'glossary', 'map', 'timeline', 'whatsnew'];
-  for (const slug of SITE_PAGE_SLUGS) {
-    out = out.replace(
-      new RegExp(`(href|src)=(["'])/${slug}\\.html\\2`, 'gi'),
-      `$1=$2/${slug}/$2`,
-    );
+  //    Verbatim TEXT (CLAUDE.md §9) is preserved — only URLs change.
+  out = rewriteLegacyLinks(out, opts.sourcePath);
+
+  // 10. Optional first-<h1> demotion (audit 2026-06-02 — link-asset-seo-audit).
+  //     Story routes emit a hero `<h1>` in the Astro frontmatter; the
+  //     extracted body's own `<h1>` would yield two H1s per page (SEO:
+  //     ambiguous topical heading; lighthouse: ~3-point structure
+  //     penalty). Demote the FIRST `<h1>` (and only the first) to `<h2>`
+  //     when the caller opts in.
+  if (opts.stripBodyH1) {
+    let replaced = false;
+    out = out.replace(/<h1\b([^>]*)>([\s\S]*?)<\/h1>/i, (match, attrs, body) => {
+      if (replaced) return match;
+      replaced = true;
+      return `<h2${attrs}>${body}</h2>`;
+    });
   }
 
   return out;

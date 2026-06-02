@@ -18,7 +18,11 @@ const SLUG = 'foia';
 const entry = sitePages.find((e) => e.slug === SLUG)!;
 const raw = readFileSync(resolve(process.cwd(), entry.legacyPath), 'utf8');
 const anchor = extractMain(raw, entry.legacyPath);
-const bodyHtml = scrubChrome(anchor, { preserveScripts: entry.preserveScripts });
+const bodyHtml = scrubChrome(anchor, {
+  preserveScripts: entry.preserveScripts,
+  sourcePath: entry.legacyPath,        // audit 2026-06-02: relative-link rewrites
+  stripBodyH1: true,                   // audit 2026-06-02: hero <h1> emitted by this page
+});
 ---
 <RootLayout
   archiveSlug="wargov"

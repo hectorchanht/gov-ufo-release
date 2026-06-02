@@ -79,7 +79,11 @@ export function getStaticPaths() {
     const abs = resolve(process.cwd(), entry.legacyPath);
     const raw = readFileSync(abs, 'utf8');
     const anchor = extractMain(raw, entry.legacyPath); // throws (B-3)
-    const bodyHtml = scrubChrome(anchor, { preserveScripts: false }); // B-4
+    const bodyHtml = scrubChrome(anchor, {
+      preserveScripts: false,             // B-4
+      sourcePath: entry.legacyPath,        // audit 2026-06-02: relative-link rewrites
+      stripBodyH1: true,                   // audit 2026-06-02: hero <h1> already on page
+    });
     return {
       params: { slug: entry.slug },
       props: { entry, bodyHtml },
