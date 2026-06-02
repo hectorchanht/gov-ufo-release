@@ -265,5 +265,26 @@ export function scrubChrome(html: string, opts: ScrubOptions = {}): string {
   //    Legacy files hard-code colours that would override CLAUDE.md
   //    §3.2 palette + per-archive --caution tone.
   out = out.replace(/\s+style=["'][^"']*["']/gi, '');
+
+  // 8. Legacy site-page link rewrite (Phase 04.1 hotfix 2026-06-02).
+  //    Pre-04.1 site pages lived at root with `.html` extension
+  //    (/about.html, /timeline.html, …). After 04.1 the canonical URL is
+  //    /<slug>/ with trailing slash. Production redirects (`_redirects`
+  //    via Plan 04.1-06) handle the 301 on Cloudflare Pages, but the
+  //    dev server (python http.server / wrangler pages dev) does NOT
+  //    honour _redirects — so legacy `<a href="/timeline.html">` 404s
+  //    during local UAT.
+  //
+  //    Rewrite anchor `href`s and `src`s for the 6 site pages to the
+  //    new trailing-slash form. Verbatim text content is untouched
+  //    (CLAUDE.md §9 trust boundary — only URLs change, never prose).
+  const SITE_PAGE_SLUGS = ['about', 'foia', 'glossary', 'map', 'timeline', 'whatsnew'];
+  for (const slug of SITE_PAGE_SLUGS) {
+    out = out.replace(
+      new RegExp(`(href|src)=(["'])/${slug}\\.html\\2`, 'gi'),
+      `$1=$2/${slug}/$2`,
+    );
+  }
+
   return out;
 }

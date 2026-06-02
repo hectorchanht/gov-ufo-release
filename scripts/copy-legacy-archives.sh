@@ -215,6 +215,26 @@ for dir in assets slideshow slideshow-2; do
   fi
 done
 
+# --- api/ + feeds/ (Phase 04.1 hotfix 2026-06-02) -------------------------
+# Legacy interactive pages (/whatsnew/, /timeline/, /map/) consume
+# /api/*.json + /feeds/*.xml. Both directories live at repo root and
+# were previously surfaced by GitHub Pages deploys directly. The Astro/CF
+# Pages build only ships dist/, so without this copy the dev server +
+# CF Pages preview both 404 those URLs.
+#
+# Uses `find` (not `git ls-files`) so build-api.py / build-feeds.py
+# regenerated artifacts (e.g. api/all.json) ship even when untracked.
+# Per CLAUDE.md §5.2 the 100 MB rule plus copy_one's MAX_BYTES guard
+# stops anything oversized from sneaking in. See
+# .planning/debug/site-pages-broken-round2.md for repro.
+for dir in api feeds; do
+  if [ -d "$dir" ]; then
+    while IFS= read -r f; do
+      copy_one "$f"
+    done < <(find "$dir" -type f \( -name '*.json' -o -name '*.xml' -o -name '*.md' \))
+  fi
+done
+
 echo "postbuild: copied $copied_count legacy files into dist/; skipped $skipped_count oversized files"
 
 # ============================================================

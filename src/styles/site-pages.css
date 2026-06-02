@@ -127,3 +127,126 @@
 .page-body[data-slug="timeline"] section {
   margin: 1em 0;
 }
+
+/* Hotfix 2026-06-02 — legacy interactive CSS that scrubChrome strips.
+ * Targeted re-add so /map/ and /glossary/ JS-driven behaviours work. See
+ * .planning/debug/site-pages-broken-round2.md for root cause. */
+
+/* ── /map/ — Leaflet target requires explicit height ──────────────────────
+ * Legacy used `#map { flex:1 }` inside a flex parent. We use min-height
+ * directly so it works in the Astro layout's block context.
+ */
+.page-body[data-slug="map"] #map {
+  min-height: 70vh;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+
+/* Leaflet sets inline width/height on the tile container. Make sure its
+ * z-index doesn't fight the sticky header. */
+.page-body[data-slug="map"] .leaflet-container {
+  z-index: 1;
+}
+
+/* Legend block below map — legacy formatting. */
+.page-body[data-slug="map"] .legend {
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+.page-body[data-slug="map"] .legend strong {
+  color: var(--ink);
+}
+
+/* ── /glossary/ — live filter relies on `.hidden` class toggle ────────────
+ * Without this rule the JS toggles a class that has no visual effect. The
+ * filter dispatches `input` events fine; only the CSS was missing.
+ */
+.page-body[data-slug="glossary"] .entry.hidden {
+  display: none;
+}
+
+/* Glossary section structure (h2 headers + entry list). */
+.page-body[data-slug="glossary"] .gsec {
+  padding: 24px 0 0;
+}
+.page-body[data-slug="glossary"] .gsec h2 {
+  font-family: var(--serif);
+  font-size: 28px;
+  color: var(--caution);
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+.page-body[data-slug="glossary"] .entry {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.page-body[data-slug="glossary"] .entry .term {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+.page-body[data-slug="glossary"] .entry .meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  margin-left: 8px;
+}
+.page-body[data-slug="glossary"] .entry .def {
+  margin-top: 6px;
+  color: var(--ink-dim);
+}
+
+/* A-Z nav strip at top of glossary. */
+.page-body[data-slug="glossary"] .az-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 16px 0 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.page-body[data-slug="glossary"] .az-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+.page-body[data-slug="glossary"] .az-nav a:hover {
+  background: var(--rule);
+}
+.page-body[data-slug="glossary"] .az-nav a.empty {
+  color: var(--ink-faint);
+  pointer-events: none;
+  border-color: var(--rule);
+  opacity: 0.4;
+}
+
+/* Filter input wrap. */
+.page-body[data-slug="glossary"] #g-q,
+.page-body[data-slug="glossary"] input[type="search"] {
+  width: 100%;
+  max-width: 480px;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.page-body[data-slug="glossary"] #g-q:focus,
+.page-body[data-slug="glossary"] input[type="search"]:focus {
+  outline: 2px solid var(--caution);
+  outline-offset: 1px;
+}
