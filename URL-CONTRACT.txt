@@ -17,7 +17,7 @@
 /nara/
 /nasa/
 /peru/
-/search.html
+/search/
 /spain/
 /stories/
 /stories/aaro-overview/

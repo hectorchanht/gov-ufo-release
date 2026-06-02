@@ -275,6 +275,9 @@ def build_legacy_301_block() -> str:
     # 4. AARO master case index special case.
     rules.add(emit_rule('/aaro/details.html', AARO_DETAILS_TARGET, 301))
 
+    # 5. Legacy /search.html → /search/ (audit 2026-06-02 — Astro owns /search/).
+    rules.add(emit_rule('/search.html', '/search/', 301))
+
     # Sentinel header — makes the section grep-able and self-documenting.
     sentinel = (
         '# === Phase 04.1 — Legacy .html → canonical 301s ===\n'
