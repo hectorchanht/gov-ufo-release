@@ -6,7 +6,7 @@
 // the seal-gradient CSS variable used by Nav.astro's .seal element.
 //
 // D-23 hard-invariant: NO `client:*` directives. Every interactive behaviour
-// arrives via <script is:inline> injected at the end of <body> from
+// arrives via an is:inline script injected at the end of <body> from
 // `src/scripts/invariants.ts` (D-21..D-22).
 //
 // T-03-11 mitigation (Tampering): `archiveSlug` is a literal-union prop;
@@ -159,7 +159,7 @@ const isActiveForSearch = forceIndexing || ACTIVE_ARCHIVES.has(archiveSlug);
     <Footer archiveSlug={archiveSlug} totalRecords={totalRecords} lastUpdated={lastUpdated} />
 
     {/* CLAUDE.md §7 invariants 1-8 — inlined verbatim from src/scripts/invariants.ts.
-        D-21..D-23: <script is:inline> guarantees no Vite bundling, no module
+        D-21..D-23: the is:inline script guarantees no Vite bundling, no module
         hoisting, no client:* hydration. set:html lets us inject the template
         literal as the script body. */}
     <script is:inline set:html={INVARIANTS_JS}></script>

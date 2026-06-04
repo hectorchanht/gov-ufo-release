@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-28T09:03:23.650Z"
+last_updated: "2026-06-01T19:17:17.617Z"
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 4
-  total_plans: 37
-  completed_plans: 31
-  percent: 67
+  total_plans: 44
+  completed_plans: 33
+  percent: 57
 ---
 
 # STATE: realufo.org — SSG Migration Milestone
@@ -35,12 +35,12 @@ progress:
 
 ## Current Position
 
-Phase: 05 (scrape-automation) — EXECUTING
+Phase: 04.1 (legacy-reorg-stories-site-pages-nav-surface) — EXECUTING
 Plan: 1 of 7
 
 - **Phase:** None (roadmap just created; awaiting `/gsd:plan-phase 1`)
 - **Plan:** None
-- **Status:** Executing Phase 05
+- **Status:** Executing Phase 04.1
 - **Progress:** 0 / 6 phases complete (0 / 56 requirements implemented)
 
 ```
@@ -59,6 +59,10 @@ Plan: 1 of 7
 | Lighthouse mobile LCP @ 4× CPU | Not budgeted | ≤ 2.5 s with HTML+inline ≤ 500 KB |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 04.1 inserted after Phase 4: Legacy reorg + stories/site-pages nav surface (URGENT)
 
 ### Key Decisions
 

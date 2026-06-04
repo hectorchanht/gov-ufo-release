@@ -27,7 +27,7 @@
 // • ABOUT panel: 6 fixed site-page entries mirroring src/data/site-pages.json.
 // Desktop: pure CSS `:hover` + `:focus-within` reveal (no JS framework).
 // Mobile (<720 px): the dropdown trigger becomes a collapsible section header
-// inside the open hamburger menu — `<script is:inline>` toggles aria-expanded
+// inside the open hamburger menu — an `is:inline` script toggles aria-expanded
 // + `.open` on the parent <li>.
 
 import type { ArchiveSlug } from '../layouts/RootLayout.astro';
@@ -215,7 +215,7 @@ const brand = BRAND[archiveSlug] ?? BRAND.wargov!;
     Idempotent: invariants.ts checks navToggle.dataset.wired before binding.
     This block lets Nav.astro work in component-isolation contexts (story-
     book / component preview) where RootLayout's bottom-of-body script is
-    absent. D-21..D-23 — <script is:inline>, no Vite bundling. */}
+    absent. D-21..D-23 — is:inline script, no Vite bundling. */}
 <script is:inline>
   /*
    * Nav.astro dropdown controller — Phase 04.1 hotfix (2026-06-02).

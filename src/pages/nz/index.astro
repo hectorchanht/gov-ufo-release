@@ -19,7 +19,7 @@
 // Astro-rendered HTML instead of the postbuild-copied legacy file.
 //
 // Key invariants:
-//   - D-21..D-23: every <script> here is <script is:inline>. NO client:*.
+//   - D-21..D-23: every script tag here is an is:inline script. NO client:*.
 //   - D-26..D-28: no transforms on text. Astro auto-escapes `{expr}` but
 //     does NOT rewrite typography. Hero copy + card titles round-trip
 //     byte-exact.
@@ -206,7 +206,7 @@ const description = "Offline mirror of New Zealand's declassified MoD/RNZAF UFO 
   <Lightbox />
 
   {/* Inline arch-data JSON manifest — mirrors the legacy nz/index.html
-      `<script id="arch-data">` block so external tooling continues to
+      script tag with id="arch-data" block so external tooling continues to
       work without per-archive special-cases:
         - scripts/verify-fidelity.py (card-title extractor reads this
           via MANIFEST_RE — see scripts/verify-fidelity.py:152)
@@ -231,7 +231,7 @@ const description = "Offline mirror of New Zealand's declassified MoD/RNZAF UFO 
       so the manifest is omitted; the handler walks the in-DOM cards
       directly. Pitfall #6: lbList walks ALL .arch-card (including
       display:none) so lightbox prev/next crosses page boundaries.
-      D-21..D-23: <script is:inline> — no Vite bundling, no hydration. */}
+      D-21..D-23: is:inline script tag — no Vite bundling, no hydration. */}
   <script is:inline>
     (() => {
       const PAGE_SIZE = 20; // D-27

@@ -15,7 +15,7 @@
 //   - D-10 LOCKED: lazy-loaded shards contain server-rendered HTML strings;
 //     the runtime loader does ONLY insertAdjacentHTML('beforeend', card.html).
 //     ZERO client-side templating. NO function named templateCard.
-//   - D-21..D-23: every <script> here is <script is:inline>. No client:*.
+//   - D-21..D-23: every script tag here is an is:inline script. No client:*.
 //   - D-26..D-28: smartypants:false in astro.config.mjs. Astro's `{expr}`
 //     auto-escapes HTML but does NOT rewrite typography. Hero copy verbatim.
 //
@@ -504,13 +504,27 @@ const jsonLd = {
 
         // Re-read per-page in case the user changed #filter-perpage.
         PAGE_SIZE = readPerPage();
-        const cards = Array.from(grid.querySelectorAll('.arch-card'));
-        if (!cards.length) return;
-        const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
+        // Operator request 2026-06-04 — coordinate with filter handler.
+        // Pagination operates on the FILTERED subset (cards that pass
+        // applyFilters). Cards with data-filter-hidden="1" are always
+        // hidden regardless of page. This keeps both constraints (filter
+        // AND pagination) compatible: visible iff matches filter AND on
+        // current page of the filtered set.
+        const allCards = Array.from(grid.querySelectorAll('.arch-card'));
+        if (!allCards.length) return;
+        const cards = allCards.filter((c) => c.dataset.filterHidden !== '1');
+        const totalPages = Math.max(1, Math.ceil(Math.max(1, cards.length) / PAGE_SIZE));
         pageNum = Math.min(Math.max(1, pageNum), totalPages);
 
         const start = (pageNum - 1) * PAGE_SIZE;
         const end = start + PAGE_SIZE;
+        // Hide all filter-failed cards outright; window the filter-passing
+        // subset to the current page.
+        for (const c of allCards) {
+          if (c.dataset.filterHidden === '1') {
+            c.style.display = 'none';
+          }
+        }
         for (let i = 0; i < cards.length; i++) {
           cards[i].style.display = i >= start && i < end ? '' : 'none';
         }
@@ -624,6 +638,12 @@ const jsonLd = {
       // at their own pace. Scroll-to-#archive ONLY fires on user-driven
       // pagination clicks + per-page-select changes. 2026-05-29 fix.
       renderPage(readPage(), { skipScroll: true });
+
+      // Operator request 2026-06-04 — expose renderPage so the filter
+      // IIFE (separate script block) can trigger a re-paginate after it
+      // mutates data-filter-hidden. Namespaced by archive slug to avoid
+      // collision with sibling pages mounted on the same origin.
+      window.__wargovRenderPage = renderPage;
     })();
   </script>
 
@@ -644,12 +664,17 @@ const jsonLd = {
         return Array.from(grid.querySelectorAll('.arch-card'));
       }
 
-      function applyFilters() {
+      function applyFilters(opts) {
+        opts = opts || {};
         const activeTab = document.querySelector('.arch-controls-bar .tab.active');
         const typeFilter = activeTab ? activeTab.getAttribute('data-tab') : 'all';
         const agencyVal = agencyFilter ? agencyFilter.value : '';
         const releaseVal = releaseFilter ? releaseFilter.value : '';
         let visible = 0;
+        // Operator request 2026-06-04 — set data-filter-hidden instead of
+        // style.display. The pagination handler (renderPage) reads this
+        // attribute and windows only the filter-passing subset. Single
+        // owner of style.display = renderPage; filter only flags pass/fail.
         for (const c of getCards()) {
           const type = c.getAttribute('data-type') || '';
           const agency = c.getAttribute('data-agency') || '';
@@ -658,12 +683,19 @@ const jsonLd = {
           const agencyOk = !agencyVal || agency === agencyVal;
           const releaseOk = !releaseVal || release === releaseVal;
           const show = typeOk && agencyOk && releaseOk;
-          c.style.display = show ? '' : 'none';
-          if (show) visible++;
+          if (show) { delete c.dataset.filterHidden; visible++; }
+          else { c.dataset.filterHidden = '1'; }
         }
         if (countEl) {
           countEl.textContent = visible + ' / ' + getCards().length + ' records';
         }
+        // Notify pagination + lbList to re-render against the new filter.
+        // skipPaginate guard avoids the initial-load double-render
+        // (renderPage already runs from the pagination IIFE on boot).
+        if (!opts.skipPaginate && window.__wargovRenderPage) {
+          window.__wargovRenderPage(1, { skipScroll: true });
+        }
+        refreshLbList();
       }
 
       function populateAgencies() {
@@ -722,30 +754,40 @@ const jsonLd = {
       if (releaseFilter) releaseFilter.addEventListener('change', applyFilters);
 
       // Re-apply filters whenever new cards arrive via the lazy-loader.
+      // Operator request 2026-06-04 — MutationObserver fires once per
+      // shard insertAdjacentHTML during materialise. Pass skipPaginate so
+      // we don't thrash renderPage(1) on every card; the pagination IIFE's
+      // own initial renderPage() (which awaits ensureCardsMaterialised)
+      // runs once after materialise completes and handles the canonical
+      // ?page=N decision.
       const obs = new MutationObserver(() => {
         populateAgencies();
-        applyFilters();
+        applyFilters({ skipPaginate: true });
       });
       obs.observe(grid, { childList: true });
 
-      // Initial
+      // Initial — skip paginate trigger; the pagination IIFE runs its
+      // own initial renderPage() which will pick up the data-filter-hidden
+      // flags via the renderPage filtering branch (initially: none hidden,
+      // so full set paginated as before).
       populateAgencies();
-      applyFilters();
+      applyFilters({ skipPaginate: true });
 
       // Populate lightbox list — invariants.ts reads window.__lbList.
       // Each entry mirrors what Plan 03-04's renderLb() reads, plus the new
       // Plan 04-01 `rowId` key used by openAt() for stable per-row lookup.
       //
-      // Pitfall #6 — walk ALL .arch-card (including display:none from filter
-      // tabs OR Plan 04-04 ?page=N windowing); the lightbox prev/next must
-      // traverse the full set so users can arrow across hidden cards.
-      // data-idx-only lookup would silently break on filter/sort/lazy-load.
-      // grid.querySelectorAll('.arch-card') already returns hidden elements —
-      // the pseudo-class :visible is NOT applied — so this satisfies the
-      // Plan 04-04 contract.
+      // Operator request 2026-06-04 — flips the prior "Pitfall #6"
+      // invariant. The lightbox prev/next now traverses the FILTERED
+      // subset only (cards without data-filter-hidden), so users
+      // arrowing through results see only cards that match the active
+      // filter / tab. Pagination-hidden cards are still included (a card
+      // matching the filter but on a different page IS reachable via the
+      // lightbox), only filter-failed cards are excluded.
       function refreshLbList() {
         const list = [];
         for (const c of grid.querySelectorAll('.arch-card')) {
+          if (c.dataset.filterHidden === '1') continue;
           const rowId = c.dataset.rowId;
           const titleEl = c.querySelector('.card-title');
           const openA = c.querySelector('a.btn-open');

@@ -11,7 +11,7 @@
 //      concat between <section id="map"> and <footer>.
 //   3. scrubChrome(anchor, { preserveScripts: true }) — strips
 //      style/link/header/footer/scanlines/inline-style BUT keeps
-//      <script> blocks inside the anchor slice (Leaflet init).
+//      script blocks inside the anchor slice (Leaflet init).
 //      W-4 fix: scripts come ONLY from the anchor slice, NEVER from
 //      legacy <head> (because extractMain returns only the anchor).
 //   4. set:html the scrubbed bodyHtml into
@@ -23,11 +23,11 @@
 //
 // Leaflet dependency: the legacy <head> loads
 //   <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css">
-//   <script src="/assets/vendor/leaflet/leaflet.js"></script>
+//   script src="/assets/vendor/leaflet/leaflet.js"
 // These are NOT preserved by scrubChrome (they live in legacy <head>,
 // not in the anchor slice). The Leaflet vendor assets are shipped at
 // /assets/vendor/leaflet/ via the copy-legacy-archives.sh postbuild
-// or via the public/ directory. We inject the leaflet <link> + <script>
+// or via the public/ directory. We inject the leaflet link + script
 // into <head> via the head-extra slot so the in-body init script can
 // reference window.L.
 //

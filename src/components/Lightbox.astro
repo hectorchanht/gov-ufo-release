@@ -3,7 +3,7 @@
 // index.html @ lines 1487-1494. NO frontmatter logic; the openAt() /
 // navLb() / closeLb() handlers live in src/scripts/invariants.ts (Plan
 // 03-04), already inlined by RootLayout.astro's bottom-of-body
-// `<script is:inline set:html={INVARIANTS_JS}>` block.
+// is:inline script with set:html={INVARIANTS_JS} block.
 //
 // IDs used here MUST match the IDs the invariants module queries:
 //   #lightbox    (the .lightbox container)
@@ -341,6 +341,22 @@
     transform-origin: center;
     max-width: 86vh;
     max-height: 92vw;
+  }
+
+  /* Operator request 2026-06-04 — rotate hides chrome (meta-panel, counter,
+     action buttons) so the rotated asset isn't crowded by the desc box.
+     The rotate button itself stays so the user can toggle back; .lb-close
+     + .lb-nav stay for navigation. Mirrors the :fullscreen rule below. */
+  .lightbox.lb-rotated .lb-meta-panel,
+  .lightbox.lb-rotated .lb-counter,
+  .lightbox.lb-rotated .lb-actions {
+    display: none;
+  }
+
+  /* When rotated, the meta-panel sibling is gone so the asset area can
+     consume the entire frame the way it does in :fullscreen. */
+  .lightbox.lb-rotated .lb-frame {
+    padding: 8px;
   }
 
   /* Operator spec 2026-05-29 — hide meta-panel in fullscreen so the

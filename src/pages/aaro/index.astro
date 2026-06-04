@@ -36,7 +36,7 @@
 //   schema field.
 //
 // Key invariants:
-//   - D-21..D-23: every <script> here is <script is:inline>. NO client:*.
+//   - D-21..D-23: every script tag here is an is:inline script. NO client:*.
 //   - D-26..D-28: no transforms on text. Astro auto-escapes `{expr}` but
 //     does NOT rewrite typography. Hero copy + card titles round-trip
 //     byte-exact.
@@ -262,7 +262,7 @@ const jsonLd = {
   <Lightbox />
 
   {/* Inline arch-data JSON manifest — mirrors the legacy
-      aaro/index.html `<script id="arch-data">` block so external
+      aaro/index.html script tag with id="arch-data" block so external
       tooling continues to work without per-archive special-cases:
         - scripts/verify-fidelity.py (card-title extractor reads this
           via MANIFEST_RE — see scripts/verify-fidelity.py)
@@ -287,7 +287,7 @@ const jsonLd = {
       adapted for AARO. AARO has 112 assets → 6 pages on first load.
       Pitfall #6: lbList walks ALL .arch-card (including display:none)
       so lightbox prev/next crosses page boundaries. D-21..D-23:
-      <script is:inline> — no Vite bundling, no hydration. */}
+      is:inline script tag — no Vite bundling, no hydration. */}
   <script is:inline>
     (() => {
       // Operator spec 1 (2026-05-29) — PAGE_SIZE tunable via #filter-perpage.
@@ -382,13 +382,21 @@ const jsonLd = {
       function renderPage(pageNum, opts) {
         opts = opts || {};
         PAGE_SIZE = readPerPage();
-        const cards = Array.from(grid.querySelectorAll('.arch-card'));
-        if (!cards.length) return;
-        const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
+        // Operator request 2026-06-04 — paginate the filter-passing
+        // subset so filter + pagination coexist (single owner of
+        // style.display = renderPage; filter only flags via
+        // data-filter-hidden).
+        const allCards = Array.from(grid.querySelectorAll('.arch-card'));
+        if (!allCards.length) return;
+        const cards = allCards.filter((c) => c.dataset.filterHidden !== '1');
+        const totalPages = Math.max(1, Math.ceil(Math.max(1, cards.length) / PAGE_SIZE));
         pageNum = Math.min(Math.max(1, pageNum), totalPages);
 
         const start = (pageNum - 1) * PAGE_SIZE;
         const end = start + PAGE_SIZE;
+        for (const c of allCards) {
+          if (c.dataset.filterHidden === '1') c.style.display = 'none';
+        }
         for (let i = 0; i < cards.length; i++) {
           cards[i].style.display = i >= start && i < end ? '' : 'none';
         }
@@ -453,6 +461,10 @@ const jsonLd = {
       if (ppSrc) ppSrc.addEventListener('change', () => renderPage(1));
 
       renderPage(readPage(), { skipScroll: true });
+
+      // Operator request 2026-06-04 — expose renderPage so the filter
+      // IIFE can trigger a re-paginate after mutating data-filter-hidden.
+      window.__aaroRenderPage = renderPage;
     })();
   </script>
 
@@ -473,23 +485,30 @@ const jsonLd = {
         return Array.from(grid.querySelectorAll('.arch-card'));
       }
 
-      function applyFilters() {
+      function applyFilters(opts) {
+        opts = opts || {};
         const activeTab = document.querySelector('.arch-controls-bar .tab.active');
         const typeFilter = activeTab ? activeTab.getAttribute('data-tab') : 'all';
         const agencyVal = agencyFilter ? agencyFilter.value : '';
         let visible = 0;
+        // Operator request 2026-06-04 — set data-filter-hidden instead of
+        // style.display. Pagination owns style.display; filter only flags.
         for (const c of getCards()) {
           const type = c.getAttribute('data-type') || '';
           const agency = c.getAttribute('data-agency') || '';
           const typeOk = typeFilter === 'all' || type === typeFilter;
           const agencyOk = !agencyVal || agency === agencyVal;
           const show = typeOk && agencyOk;
-          c.style.display = show ? '' : 'none';
-          if (show) visible++;
+          if (show) { delete c.dataset.filterHidden; visible++; }
+          else { c.dataset.filterHidden = '1'; }
         }
         if (countEl) {
           countEl.textContent = visible + ' / ' + getCards().length + ' records';
         }
+        if (!opts.skipPaginate && window.__aaroRenderPage) {
+          window.__aaroRenderPage(1, { skipScroll: true });
+        }
+        refreshLbList();
       }
 
       function populateAgencies() {
@@ -543,22 +562,31 @@ const jsonLd = {
       if (sort) sort.addEventListener('change', () => { applySort(); applyFilters(); });
       if (agencyFilter) agencyFilter.addEventListener('change', applyFilters);
 
+      // Operator request 2026-06-04 — MutationObserver fires once per
+      // shard insertAdjacentHTML during materialise. Pass skipPaginate so
+      // we don't thrash renderPage(1) on every card; the pagination IIFE's
+      // own initial renderPage() (which awaits ensureCardsMaterialised)
+      // runs once after materialise completes and handles the canonical
+      // ?page=N decision.
       const obs = new MutationObserver(() => {
         populateAgencies();
-        applyFilters();
+        applyFilters({ skipPaginate: true });
       });
       obs.observe(grid, { childList: true });
 
       populateAgencies();
-      applyFilters();
+      applyFilters({ skipPaginate: true });
 
       // Populate lightbox list — invariants.ts reads window.__lbList.
-      // Pitfall #6: walk ALL .arch-card (including display:none) so
-      // lightbox prev/next traverses the full set across filter +
-      // pagination boundaries.
+      // Operator request 2026-06-04 — flips the prior "Pitfall #6"
+      // invariant. Lightbox prev/next traverses only the FILTERED subset
+      // (cards without data-filter-hidden). Pagination-hidden cards are
+      // still included (the user can arrow across pages); only filter-
+      // failed cards are excluded.
       function refreshLbList() {
         const list = [];
         for (const c of grid.querySelectorAll('.arch-card')) {
+          if (c.dataset.filterHidden === '1') continue;
           const rowId = c.dataset.rowId;
           const titleEl = c.querySelector('.card-title');
           const openA = c.querySelector('a.btn-open');

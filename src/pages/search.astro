@@ -11,7 +11,7 @@
 //   - RootLayout (Plan 03-04) — archiveSlug='wargov' for tone-default.
 //     This route lives at /search (no archive prefix) so the wargov
 //     gold #d4a017 is the brand-consistent caution colour.
-//   - PagefindUI mount via <script is:inline> (D-23 hydration-free).
+//   - PagefindUI mount via is:inline script (D-23 hydration-free).
 //
 // Search-result anchor injection (SRC-04 / RESEARCH §2 Pitfall 9):
 //   PagefindUI's default URL output is the page URL only. To produce
@@ -30,7 +30,7 @@
 //     round-trip. PagefindUI doesn't do this natively; we wire it
 //     manually.
 //
-// D-21..D-23: every <script> here is <script is:inline>. NO client:*.
+// D-21..D-23: every script tag here is an is:inline script. NO client:*.
 // D-26..D-28: no smartypants; verbatim hero copy preserved from the
 // legacy /search.html (CLAUDE.md §9 fidelity rule).
 
@@ -69,7 +69,7 @@ const canonicalUrl = 'https://realufo.org/search';
   </section>
 
   {/* PagefindUI core — emitted into dist/pagefind/ by the postbuild
-      pagefind invoke. Loaded via <script is:inline> (D-23 — no client:*
+      pagefind invoke. Loaded via is:inline script tag (D-23 — no client:*
       hydration, no bundling). */}
   <script is:inline src="/pagefind/pagefind-ui.js"></script>
 
