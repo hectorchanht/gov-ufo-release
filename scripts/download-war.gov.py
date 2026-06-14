@@ -33,9 +33,10 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent   # repo root
 SLIDES_DIR    = ROOT / "slideshow"
 SLIDES_2_DIR  = ROOT / "slideshow-2"             # Release 02 carousel images
+SLIDES_3_DIR  = ROOT / "slideshow-3"             # Release 03 carousel images
 BUNDLES_DIR   = ROOT / "bundles"
 ASSETS_DIR    = ROOT / "assets"
-for d in (SLIDES_DIR, SLIDES_2_DIR, BUNDLES_DIR, ASSETS_DIR):
+for d in (SLIDES_DIR, SLIDES_2_DIR, SLIDES_3_DIR, BUNDLES_DIR, ASSETS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 HEADERS = {
@@ -129,6 +130,25 @@ SLIDES_2 = [
     "ODNI-UAP-D001_USPER_Narrative_Senior_USIC.jpg",
 ]
 
+# Release 03 (2026-06-12) — third tranche under PURSUE. 72 records
+# (53 PDF, 10 IMG, 6 VID, 3 AUD). The hero/carousel imagery lives under a
+# new /061226/Rotator/ path (NOT a Slideshow-3/ dir), and ships its own
+# document bundle + a ~5 GB Cloudfront video archive. Filenames discovered
+# verbatim from the live www.war.gov/UFO/ page markup.
+SLIDESHOW_3_BASE = "https://www.war.gov/portals/1/Interactive/2026/UFO/061226/Rotator/"
+SLIDES_3 = [
+    "CIA-UAP-017_Placement_on_High_Alert_Due_to_Perceived_Aggressive_Foreign_Posturing.jpg",
+    "DOW-UAP-D084_USArmy-Flying-Saucer-Study_1949_.jpg",
+    "FBI-UAP-D002_FD-1057_Unresolved-UAP-Report_ColoradoSprings_2022.jpg",
+    "FBI-UAP-D003_Digital-Rendering_Unresolved-UAP-Report_ColoradoSprings_2022.jpg",
+    "FBI-UAP-D009_FD-302-67_Northeastern-Orb-Sighting_2026.jpg",
+    "FBI-UAP-D010_FD-302-71_Northeastern-Orb-Sighting_2026.jpg",
+    "FBI-UAP-D011_DFBI-Correspondence-Referral_1949.jpg",
+    "FBI-UAP-PR003_Orbs-Over-the-Pond_2024.jpg",
+    "FBI-UAP-PR004_Northeastern-Orb-Sighting_2025.jpg",
+    "ICA-UAP-D001_Analysis_Colorado-Springs-UAP-Incident.jpg",
+]
+
 # Master manifest. As of Release 02 (5/22/26), war.gov serves a single
 # combined CSV (uap-data.csv) that includes both Release 01 and 02 rows.
 # The legacy /uap-release001.csv is still served verbatim — we keep both.
@@ -148,6 +168,12 @@ BUNDLES = [
      "release_02_document_bundle.zip"),
     ("https://d34w7g4gy10iej.cloudfront.net/uap052226.zip",
      "uap052226.zip"),
+    # Release 03 (6/12/26) — 53 PDFs + IMG renderings (~866 MB docs bundle)
+    # + ~4.96 GB cloudfront video archive. URLs verbatim from war.gov/UFO/.
+    ("https://www.war.gov/medialink/ufo/061226/release_03/release_03_documents.zip",
+     "release_03_documents.zip"),
+    ("https://d34w7g4gy10iej.cloudfront.net/release_03/uap_videos_061226.zip",
+     "uap_videos_061226.zip"),
 ]
 
 
@@ -161,6 +187,11 @@ def main():
              for f in SLIDES_2)
     print(f"  ({ok}/{len(SLIDES_2)} ok)")
 
+    print("\n=== Slideshow images — Release 03 (10) ===")
+    ok = sum(fetch(SLIDESHOW_3_BASE + f.replace(" ", "%20"), SLIDES_3_DIR / f)
+             for f in SLIDES_3)
+    print(f"  ({ok}/{len(SLIDES_3)} ok)")
+
     print("\n=== Site chrome (logos) ===")
     for url, name in LOGOS:
         fetch(url, ASSETS_DIR / name)
@@ -172,6 +203,7 @@ def main():
     print("\n=== Bundles ===")
     print("  Release 01: Release_1.zip (~1.2 GB docs+imgs), uapvideos.zip (~1.3 GB)")
     print("  Release 02: release_02_document_bundle.zip (~70 MB), uap052226.zip (~5.6 GB)")
+    print("  Release 03: release_03_documents.zip (~866 MB), uap_videos_061226.zip (~4.96 GB)")
     for url, name in BUNDLES:
         fetch(url, BUNDLES_DIR / name)
 
