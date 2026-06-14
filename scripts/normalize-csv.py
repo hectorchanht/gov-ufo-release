@@ -575,6 +575,8 @@ def render_card_html(row: dict[str, str], idx: int) -> str:
         release = '01'
     elif release_date == '5/22/26':
         release = '02'
+    elif release_date == '6/12/26':
+        release = '03'
     else:
         release = ''
 

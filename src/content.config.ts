@@ -114,6 +114,12 @@ const catalogEnvelopeSchema = z.object({
 // -----------------------------------------------------------------------------
 
 const wargovRowSchema = z.object({
+  // `Featured` — new leading column introduced with war.gov Release 03
+  // (6/12/26). 'YES' flags the row as a hero/Rotator carousel pick on the
+  // official site. Lenient string fall-through (D-02 drift signal): the
+  // CSV gained this column verbatim, so the schema documents it rather than
+  // silently passing it through the non-strict envelope.
+  Featured: z.string().default(''),
   Redaction: z.string().default(''),
   'Release Date': z.string().default(''),
   Title: z.string().min(1),
