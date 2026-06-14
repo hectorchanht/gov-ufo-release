@@ -157,11 +157,13 @@ _SLUG_RE = re.compile(r'[^a-z0-9]+')
 # -----------------------------------------------------------------------------
 
 # DVIDS catalog-ID → DOD asset-ID maps. r01 covers the May 8, 2026 tranche;
-# r02 covers the May 22, 2026 tranche. `scripts/resolve-dvids-r01.py` emits
-# both files (Akamai blocks GH Actions egress so the script is dev-only).
+# r02 covers the May 22, 2026 tranche; r03 covers the June 12, 2026 tranche.
+# `scripts/resolve-dvids-r0{1,3}.py` emit these files (Akamai blocks GH
+# Actions egress so the scripts are dev-only).
 DVIDS_MAP_PATHS = (
     REPO / 'scripts' / 'dvids2dod-r01.json',
     REPO / 'scripts' / 'dvids2dod-r02.json',
+    REPO / 'scripts' / 'dvids2dod-r03.json',
 )
 
 # Slideshow thumbnail directories. `slideshow/` carries the R01 imagery
