@@ -93,8 +93,15 @@ Plan: 1 of 7
 
 None at roadmap-creation time.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260615-3e3 | Fetch war.gov Release 03 (6/12/26, +72 rows) + wire site + upload to R2 | 2026-06-15 | 4dc5255 | Mostly complete — 53 PDFs + 7/9 videos live on R2; 2 large videos (>300 MiB) pending S3 upload | [260615-3e3](./quick/260615-3e3-fetch-third-war-gov-ufo-release-and-upda/) |
+
 ### TODOs
 
+- **wargov R03**: upload 2 large videos to R2 via S3 multipath — `DOD_111764796.mp4` (2.99 GiB) + `DOD_111764902.mp4` (1.19 GiB) exceed wrangler's 300 MiB cap. Source: `/Users/laichan/UFO/AARO061226/`. Until done, 2 AUD cards (DVIDS 1010319, 1010336) play → 404.
 - Run `/gsd:plan-phase 1` to decompose Phase 1 into executable plans
 - Confirm with user that 6-phase structure matches their mental model
 - Confirm with user whether v2 social/curation features (SOCL-*, FED-*, A11Y-*) are correctly deferred
