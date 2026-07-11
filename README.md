@@ -1,35 +1,54 @@
 # realufo.org — every official UAP archive, in one place
 
-**Live at [realufo.org](https://realufo.org/)** · 15 government UAP archives
-side-by-side, offline-first, mobile-first, zero build tooling.
+**Live at [realufo.org](https://realufo.org/)** · official government UAP
+releases preserved side-by-side — offline-first, mobile-first, verbatim.
 
-| # | Archive | Source | Entry point |
+Built with **Astro 5** (static output) and deployed on **Cloudflare Pages**.
+Binary payloads (PDFs, videos) live on **GitHub Releases** + **Cloudflare R2**;
+search is **Pagefind**; every page ships a **service worker** so the archive
+keeps working with no network.
+
+---
+
+## Archives
+
+**4 ACTIVE** — rendered by Astro, wired into nav, footer, and search:
+
+| # | Archive | Source | Route |
 | --: | --- | --- | --- |
-| 1 | **PURSUE — Department of War / Release 01** | <https://www.war.gov/UFO/> | [`/`](index.html) |
-| 2 | **AARO — All-domain Anomaly Resolution Office** | <https://www.aaro.mil/> | [`/aaro/`](aaro/index.html) |
-| 3 | **NASA UAP Independent Study Team** | <https://science.nasa.gov/uap/> | [`/nasa/`](nasa/index.html) |
-| 4 | **NARA — Project Blue Book + JFK + UAP** | <https://catalog.archives.gov/> | [`/nara/`](nara/index.html) |
-| 5 | **France — GEIPAN (CNES)** | <https://www.cnes-geipan.fr/> | [`/geipan/`](geipan/index.html) |
-| 6 | **UK — National Archives MoD files** | <https://discovery.nationalarchives.gov.uk/> | [`/uk/`](uk/index.html) |
-| 7 | **Brazil — Força Aérea Brasileira** | <https://www.fab.mil.br/> | [`/brazil/`](brazil/index.html) |
-| 8 | **Chile — CEFAA / SEFAA (DGAC)** | <https://www.sefaa.cl/> | [`/chile/`](chile/index.html) |
-| 9 | **Argentina — CEFAe** | <https://www.argentina.gob.ar/fuerzaaerea/cefae> | [`/argentina/`](argentina/index.html) |
-| 10 | **Canada — LAC / Project Magnet** | <https://www.bac-lac.gc.ca/> | [`/canada/`](canada/index.html) |
-| 11 | **Italy — Aeronautica Militare** | <https://www.aeronautica.difesa.it/> | [`/italy/`](italy/index.html) |
-| 12 | **NZ — NZ Defence Force** | <https://www.nzdf.mil.nz/> | [`/nz/`](nz/index.html) |
-| 13 | **Peru — OIFAA (Fuerza Aérea)** | <https://www.gob.pe/fap> | [`/peru/`](peru/index.html) |
-| 14 | **Spain — Ejército del Aire** | <https://ejercitodelaire.defensa.gob.es/> | [`/spain/`](spain/index.html) |
-| 15 | **Uruguay — CRIDOVNI** | <https://www.fau.mil.uy/> | [`/uruguay/`](uruguay/index.html) |
+| 1 | **PURSUE — Department of War / Release 01–03** | <https://www.war.gov/UFO/> | [`/`](https://realufo.org/) |
+| 2 | **AARO — All-domain Anomaly Resolution Office** | <https://www.aaro.mil/> | [`/aaro/`](https://realufo.org/aaro/) |
+| 3 | **NASA UAP Independent Study Team** | <https://science.nasa.gov/uap/> | [`/nasa/`](https://realufo.org/nasa/) |
+| 4 | **NARA — Project Blue Book + JFK + UAP** | <https://catalog.archives.gov/> | [`/nara/`](https://realufo.org/nara/) |
 
-Cross-archive search lives at [`/search.html`](search.html).
+**11 DORMANT** — full code + data + content-collection entries preserved in the
+repo; not linked from nav/footer/search yet, but direct-URL access still works.
+`nz` + `uruguay` are Astro-ported; the other 9 ship as git-tracked legacy HTML.
 
-Every archive shares the same visual language and control logic — a
-cinematic hero carousel of real declassified imagery, a headlines strip,
-and a filterable, sortable, paginated **evidence browser** that surfaces
-every artifact with full context (agency, location, incident date,
-VIRIN / DVIDS ID, redaction status, case status). Every file you can see
-is served from the local archive when present — and falls back to the
-official source URL otherwise.
+| Archive | Source | Route |
+| --- | --- | --- |
+| France — GEIPAN (CNES) | <https://www.cnes-geipan.fr/> | `/geipan/` |
+| UK — National Archives MoD files | <https://discovery.nationalarchives.gov.uk/> | `/uk/` |
+| Brazil — Força Aérea Brasileira | <https://www.fab.mil.br/> | `/brazil/` |
+| Chile — CEFAA / SEFAA (DGAC) | <https://www.sefaa.cl/> | `/chile/` |
+| Argentina — CEFAe | <https://www.argentina.gob.ar/fuerzaaerea/cefae> | `/argentina/` |
+| Canada — LAC / Project Magnet | <https://www.bac-lac.gc.ca/> | `/canada/` |
+| Italy — Aeronautica Militare | <https://www.aeronautica.difesa.it/> | `/italy/` |
+| NZ — NZ Defence Force | <https://www.nzdf.mil.nz/> | `/nz/` |
+| Peru — OIFAA (Fuerza Aérea) | <https://www.gob.pe/fap> | `/peru/` |
+| Spain — Ejército del Aire | <https://ejercitodelaire.defensa.gob.es/> | `/spain/` |
+| Uruguay — CRIDOVNI | <https://www.fau.mil.uy/> | `/uruguay/` |
+
+Cross-archive search lives at [`/search/`](https://realufo.org/search/).
+Re-activating a dormant archive is a 3-line edit (its slug into `Nav.astro`,
+`Footer.astro`, and `RootLayout.astro`).
+
+Every archive shares the same visual language and control logic — a cinematic
+hero carousel of real declassified imagery, a headlines strip, and a
+filterable, sortable, paginated **evidence browser** that surfaces every
+artifact with full context (agency, location, incident date, VIRIN / DVIDS ID,
+redaction status, case status). Files served from the archive when present,
+falling back to the official source URL otherwise.
 
 ---
 
@@ -37,528 +56,234 @@ official source URL otherwise.
 
 ```
 .
-├── index.html               # PURSUE — war.gov/UFO landing
-├── search.html              # cross-archive search
-├── uap-release001.csv       # official Release 01 manifest (158 records)
-├── slideshow/               # 17 highlight images
-├── bundles/
-│   ├── Release_1/           # 130 docs + images (gitignored — restored via sync)
-│   ├── Release_1.zip        # official zip (gitignored)
-│   ├── uapvideos/           # 28 DVIDS UAP videos (gitignored)
-│   └── uapvideos.zip        # official zip (gitignored)
-├── assets/                  # site chrome + shared favicon.svg (classic disk UFO)
+├── src/                        # Astro source — the 4 ACTIVE archives + shared chrome
+│   ├── pages/                  # file-based routes
+│   │   ├── index.astro         # wargov (/) — War.gov/PURSUE
+│   │   ├── aaro|nasa|nara/index.astro
+│   │   ├── nz|uruguay/index.astro          # dormant, but Astro-owned
+│   │   ├── stories/index.astro, [slug].astro   # curated cases (legacy-HTML extraction)
+│   │   ├── search.astro                    # /search/ — Pagefind UI
+│   │   └── about|foia|glossary|map|timeline|whatsnew.astro   # 6 site-pages
+│   ├── layouts/                # RootLayout.astro (shell + tone map), BaseHead.astro (head + SW reg)
+│   ├── components/             # Card, CatalogCard, Nav, Footer, HeroCarousel, Lightbox, StructuredData
+│   ├── scripts/                # invariants.ts, extractLegacyBody.ts, jsonldSchemas.ts
+│   ├── styles/                 # global.css + per-archive css
+│   ├── data/                   # stories.json, site-pages.json — nav/route manifests
+│   ├── content.config.ts       # Content Collections schema (15 archives)
+│   └── sw.ts                   # Workbox injectManifest source → dist/sw.js
 │
-├── aaro/                    # AARO archive (cases, FOIA, videos, details.html)
-├── nasa/                    # NASA UAP study + briefings
-├── nara/                    # NARA Blue Book / JFK / UAP catalog
-├── geipan/                  # France — 3343 GEIPAN cases
-├── uk/                      # UK National Archives — TNA Discovery API
-├── brazil/                  # Brazil FAB / Operação Prato
-├── chile/                   # Chile SEFAA
-├── argentina/               # CEFAe
-├── canada/                  # LAC / Project Magnet
-├── italy/                   # Aeronautica Militare
-├── nz/                      # NZDF
-├── peru/                    # OIFAA
-├── spain/                   # Ejército del Aire
-├── uruguay/                 # CRIDOVNI
+├── data/                       # Content-collection payloads — data/<slug>.json (+ shards)
+├── public/                     # static passthrough → dist/ root (favicon, _headers, robots, runtime data mirror)
+├── legacy/                     # git-tracked pre-Astro HTML — 11 dormant archives + site-page sources
+├── scripts/                    # normalise / scrape / verify (Python + bash) — see below
+├── tests/                      # Playwright specs + visual baselines + fidelity samples
+├── slideshow/ slideshow-2/ 3/  # hero-carousel imagery for Release 01 / 02 / 03 (git-tracked)
+├── bundles/                    # PDF/zip source bundles (mostly gitignored; restored via sync.sh)
 │
-├── download.py              # war.gov downloader (TLS-impersonating curl_cffi)
-└── scripts/
-    ├── sync.sh              # ⭐ master entry — run this
-    ├── dl-<slug>.sh         # per-archive downloader
-    ├── build-<slug>.py      # per-archive site generator
-    ├── build-details.py     # long-form text pages
-    ├── parse-aaro.py        # parse AARO page HTML → structured JSON
-    ├── extract-evidence.py  # build the AARO evidence map
-    └── spider.py            # generic source-page crawler
+├── uap-data.csv                # ⭐ source-of-truth manifest (never hand-edit — CLAUDE.md §11)
+├── uap-release001.csv          # original Release 01 manifest (158 records)
+├── astro.config.mjs            # Astro 5 + Cloudflare adapter + AstroPWA (injectManifest) + swRelocator
+├── package.json                # prebuild / build / postbuild pnpm scripts
+├── URL-CONTRACT.txt + _redirects   # canonical routes (drift-gated in CI)
+└── CLAUDE.md                   # master spec — read before changing anything
 ```
 
-> Every `index.html` is **self-contained** — no build step, no web server.
-> Open in any browser. The only reason to run the downloader is to populate
-> the bulky payloads (PDFs, videos) excluded from Git.
+> **Note:** the root-level per-archive directories (`aaro/`, `geipan/`, `uk/`, …)
+> are **local-only gitignored download caches** — zero git-tracked files, never
+> deployed. The shipped HTML for dormant archives lives in `legacy/<slug>/`.
 
 ---
 
 ## Quick start
 
-### 1. Clone
-
 ```bash
-git clone https://github.com/<you>/war-gov-ufo-release
-cd war-gov-ufo-release
+git clone https://github.com/hectorchanht/gov-ufo-archive
+cd gov-ufo-archive          # local folder may be named war-gov-ufo-release (historical)
+
+pnpm install                # Node 22.x + pnpm 9.15.9 (both version-pinned)
+pnpm dev                    # http://localhost:4321 — Astro dev server, hot reload
 ```
 
-### 2. Install the one dependency
+Build the full deploy artifact locally:
 
 ```bash
-pip install curl_cffi
+pnpm build                  # prebuild → astro build → postbuild
+pnpm preview                # serve dist/ exactly as Cloudflare Pages will
 ```
 
-`curl_cffi` is required for the war.gov + AARO sides because both Akamai
-hosts use TLS-fingerprint bot protection. `curl_cffi` wraps
-`curl-impersonate`, which replicates a real Chrome handshake byte-for-byte.
+`pnpm build` runs three stages:
 
-Everything else uses only the Python and POSIX shell standard libraries.
+1. **`prebuild`** — `python3 scripts/normalize-csv.py` parses `uap-data.csv`
+   (source of truth), rewrites PDF/video URLs to Cloudflare R2, emits
+   `data/wargov.json` + shards.
+2. **`astro build`** — renders the 4 active archives from content collections
+   into `dist/` (`output: 'static'`, no SSR).
+3. **`postbuild`** — `bash scripts/copy-legacy-archives.sh` runs Pagefind over
+   `dist/`, copies the 11 dormant archives' git-tracked legacy HTML into
+   `dist/<slug>/` (via `git ls-files`, so gitignored PDFs/videos are never
+   copied), and builds the sitemap. Enforces the CF Pages 25 MiB/file limit.
 
-### 3. Populate the archive
+### Populate the bulky local mirror (optional)
+
+Binary payloads are excluded from Git and served from GitHub Releases + R2 in
+production. To pull a full local copy of PDFs/videos:
 
 ```bash
-./scripts/sync.sh
+pip install curl_cffi        # only non-stdlib dependency (Akamai TLS impersonation)
+./scripts/sync.sh            # interactive picker; idempotent — skips what's on disk
 ```
 
-That single command:
-
-1. Runs `download.py` to pull the war.gov payloads
-2. Snapshots all aaro.mil pages via the Wayback Machine
-3. Downloads every official AARO UAP video from the DVIDS CDN
-4. Crawls every other national archive (GEIPAN, TNA, FAB, SEFAA, …)
-5. Re-parses everything and rebuilds every `index.html` so the
-   `LOCAL / SOURCE` badges match what's actually on disk
-
-It's **idempotent** — files already on disk are skipped. Re-running it picks
-up only what's new.
-
-### 4. Open in a browser
+Selective flags:
 
 ```bash
-open index.html                   # macOS
-xdg-open index.html               # Linux
-start index.html                  # Windows
+./scripts/sync.sh --all          # full run
+./scripts/sync.sh --aaro-only    # one archive only (replace slug)
+./scripts/sync.sh --no-videos    # skip the multi-gig videos
+./scripts/sync.sh --no-build     # download only
 ```
-
-That's it. Every archive works offline from this point on.
 
 ---
 
-## Dev loop (optional but recommended)
+## How it works
 
-Zero build tooling required. The two helpers below make iteration faster
-without locking the repo into a JS framework.
+**Static site, no hydration framework.** Zero React/Vue/Svelte. All
+interactivity is `<script is:inline>` vanilla JS following the CLAUDE.md §7
+invariants (lightbox, hamburger nav, `/`-focuses-search, filter/sort, `?q=`
+persistence). Cards are pre-rendered — the archive stays viewable with JS
+disabled and offline.
 
-### live-server — auto-reload browser on file save
+### Data pipeline
 
-```bash
-# One-time install:
-npm install -g live-server
-
-# Run from repo root — opens http://localhost:8765 and reloads on every save
-live-server --port=8765 --no-browser .
+```
+uap-data.csv ──(prebuild)──► scripts/normalize-csv.py ──► data/wargov.json (+shards)
+                                                          │
+per-archive JSON  ◄──(normalize-<slug>.py)               │
+                                                          ▼
+                                    src/content.config.ts  (Zod-strict schema, 15 collections)
+                                                          │
+                                    astro build ──► dist/  (4 active archives rendered)
+                                                          │
+                              copy-legacy-archives.sh ──► dist/<slug>/  (11 dormant, from legacy/)
+                                                          │
+                              pagefind --site dist ──► dist/pagefind/  (search index)
+                                                          ▼
+                                    wrangler pages deploy dist/  ──►  Cloudflare Pages
 ```
 
-Plain alternative if you don't want npm:
+- **Content collections** (`src/content.config.ts`) define one collection per
+  archive slug. `.strict()` Zod schemas — an unknown field is a hard build
+  failure, not a silent drop. **No `z.transform()`/`z.preprocess()`** anywhere,
+  so smart quotes / em-dashes / accents round-trip byte-exact (content-fidelity
+  guard, verified by a 115-sample test).
+- **Search** — Pagefind indexes only pages carrying `data-pagefind-body` (the 4
+  active archives); dormant pages emit `data-pagefind-ignore`.
+- **Offline** — `@vite-pwa/astro` with `injectManifest` compiles `src/sw.ts`
+  (Workbox 7, 5 runtime-cache tiers). Registration is hand-rolled in
+  `BaseHead.astro` with `updateViaCache: 'none'` (kill-switch invariant).
 
-```bash
-python3 -m http.server 8765
-```
+### `scripts/` inventory
 
-Static-only, no reload, but zero dependencies.
+Surviving (Astro-era): `normalize-*.py` (content-collection writers),
+`copy-legacy-archives.sh` (postbuild), `build-redirects.py` (URL-contract drift
+gate), `dl-*.sh` + `scrape-*.py` + `spider.py` (local sync / Phase 5 scrape),
+`verify-*.{py,sh}` (CI gates), `sync.sh` (interactive sync entry).
 
-### watchexec — rebuild HTML on `.py` / `.csv` change
+Retired by Plan 04-20 (CI-enforced absent via `scripts/verify-python-retired.sh`):
+the old `build-wargov.py`, `build-details.py`, `sync-nav.py`, `sync-footer.py`,
+`parse-aaro.py`, and the per-archive `build-*.py` HTML generators — Astro +
+content collections replaced them. See
+`.planning/decisions/python-build-retired.md`.
 
-```bash
-# One-time install (Homebrew):
-brew install watchexec
+---
 
-# Watch the build sources; rebuild every mirror on change:
-watchexec -w scripts -w uap-release001.csv -e py,csv -- \
-  bash -c 'python3 scripts/build-wargov.py \
-        && python3 scripts/build-aaro.py \
-        && python3 scripts/build-nasa.py \
-        && python3 scripts/build-nara.py'
-```
-
-Pair the two: `live-server` reloads the browser the moment `watchexec`
-finishes regenerating HTML — full dev loop without a bundler.
-
-### Continuous integration (already wired)
+## Continuous integration (`.github/workflows/`)
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
-| `scrape.yml`        | Monday 06:00 UTC + manual | Re-scrape every source, rebuild HTML, auto-commit. |
-| `links.yml`         | every push to `*.html`, weekly Monday 07:00 UTC, manual | [lychee] broken-link check across all 44 pages. Ignored hosts in `.lycheeignore`. |
-| `html-validate.yml` | every push to `*.html`, manual | [html-validate] HTML5 validation. Config: `.htmlvalidate.json`. |
-| `lighthouse.yml`    | every push to `*.html` / `*.css` / `*.js`, manual | [Lighthouse CI] Core Web Vitals + a11y + SEO on 8 representative URLs. Config: `.lighthouserc.json`. |
+| `deploy-cf-pages.yml` | push to `main`, manual | `pnpm build` → `wrangler pages deploy dist/` (fallback deploy path). |
+| `lighthouse.yml` | push / PR on site paths | Lighthouse CI Core Web Vitals + a11y + SEO. Config `.lighthouserc.json`. |
+| `links.yml` | push, PR, weekly | [lychee] broken-link check. Ignored hosts in `.lycheeignore`. |
+| `quality-gates.yml` | (matrix; `deployment_status` trigger currently disabled) | fidelity / tone-colours / redirects / mobile-Lighthouse budget gates. |
+| `r2-sync.yml` | manual / path-scoped | mirror binaries to Cloudflare R2 (`assets.realufo.org`). |
+| `scrape.yml` | weekly + manual | re-scrape dormant sources (Phase 5 scope — pending rewrite). |
 
-No tokens needed for the first three. For Lighthouse CI report comments
-on PRs, add `LHCI_GITHUB_APP_TOKEN` repo secret (optional — runs anyway).
-
----
-
-## How this project works
-
-Static HTML. Zero runtime dependencies. Zero JS bundlers. Every page is
-generated from one of three sources:
-
-1. **Per-mirror build scripts** (`scripts/build-<slug>.py`) — emit
-   `<slug>/index.html` by merging a curated `ASSETS` list with discovered
-   records from the cache and the GitHub release manifest.
-2. **Hand-written HTML** for utility + story pages — kept as plain HTML
-   in the repo. Shared components (`<nav>`, `<footer>`) get rewritten by
-   `sync-*.py` scripts so every page stays in lock-step with the canonical
-   builder functions in `scripts/_site_template.py`.
-3. **One-off generators** — `build-api.py`, `build-feeds.py`,
-   `build-geo.py`, etc. emit ancillary JSON / Atom / SVG artifacts.
-
-### Pipeline (bottom-up)
-
-```
-┌─ external sources ──────────────────────────────────────────────────┐
-│  uap-release001.csv       (Department of War CSV, hand-curated)     │
-│  KNOWN_RECORDS in scrape-*.py  (per-archive seed lists)             │
-│  aaro.mil  · science.nasa.gov  · catalog.archives.gov               │
-│  discovery.nationalarchives.gov.uk  · cnes-geipan.fr  · etc.        │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-            ┌────────────┼────────────────┐
-            │            │                │
-   ┌────────▼─┐   ┌──────▼───────┐  ┌────▼────────────┐
-   │ scrape-* │   │ harvest-tna  │  │  spider.py      │
-   │  .py     │   │  .py (UK)    │  │  (catalog BFS)  │
-   └────┬─────┘   └──────┬───────┘  └────┬────────────┘
-        │                │               │
-        └─→  <mirror>/.cache/{scraped-index, tna-index, spider-index}.json
-                         │
-                         ▼
-┌─ release backfill ──────────────────────────────────────────────────┐
-│  scripts/backfill-release.py  --upload                              │
-│    Diffs every PDF/MP4 URL across mirrors against pdfs-v1 + videos-v1│
-│    Downloads missing → uploads to GitHub Releases                   │
-│    Writes release-manifest.json  (basename → release-download URL)  │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─ build (per-mirror HTML) ───────────────────────────────────────────┐
-│  scripts/build-aaro.py        scripts/build-geipan.py               │
-│  scripts/build-nasa.py        scripts/build-uk.py                   │
-│  scripts/build-nara.py        scripts/build-brazil.py               │
-│  scripts/build-chile.py       scripts/build_batch3.py  (7 smaller)  │
-│  scripts/build-details.py     scripts/build-wargov.py               │
-│                                                                     │
-│  Each merges:                                                       │
-│    - hand-curated ASSETS list                                       │
-│    - <mirror>/.cache/*-index.json   (scrape/spider/harvest results) │
-│    - release-manifest.json          (URL rewrites for downloadable) │
-│  Then imports scripts/_site_template.py for nav, head, lightbox,    │
-│  shared CSS, shared JS, and emits the final HTML.                   │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─ canonicalise shared components in hand-written HTML ───────────────┐
-│  scripts/sync-nav.py     — rewrites <nav class="primary">           │
-│  scripts/sync-footer.py  — rewrites <footer>                        │
-│  (more to come: lightbox, archive grid)                             │
-│                                                                     │
-│  Both expose a `--check` mode used as a CI gate so drift can't      │
-│  decay silently.                                                    │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─ ancillary artifacts ───────────────────────────────────────────────┐
-│  build-api.py   → api/all.json, api/by-archive.json, api/stats.json │
-│  build-feeds.py → feeds/<mirror>.xml  (Atom)                        │
-│  build-geo.py   → api/geo.json  (case-pin coordinates for /map.html)│
-│  build-og.py    → */assets/og.svg  (per-archive Open Graph)         │
-│  validate-manifests.py — sanity-check every embedded JSON           │
-│  check-sources.py      — HEAD every external URL, write dead-links.*│
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-            git push  →  GitHub Pages
-            (static HTML served direct, no build at edge)
-```
-
-### Single source of truth
-
-`scripts/_site_template.py` holds the canonical builders for every
-shared UI piece:
-
-| Builder | What it returns | Used by |
-| --- | --- | --- |
-| `make_nav(slug, depth)` | `<nav class="primary">…</nav>` with USA pins + Site ▾ + Story ▾ + Nations ▾ | every build script + `sync-nav.py` |
-| `make_footer(variant, depth, meta)` | minimal / mirror / root footer | `sync-footer.py`, build scripts |
-| `make_head(title, …)` | full `<head>` with meta + fonts + CSS injection | build scripts |
-| `SHARED_CSS` / `SHARED_JS` | drop-in CSS + JS string | every build script |
-| `LIGHTBOX_HTML` | media viewer markup | every build script |
-| `PINNED` / `SITE_PAGES` / `STORIES` / `MORE` | lookup tables for the nav | `make_nav()` |
-| `I18N` | translation dictionary (6 languages) | `make_nav`, `SHARED_JS` |
-
-Change `PINNED` (or `STORIES`) once → run `sync-nav.py` → every page
-across the repo updates. CI fails the build if anyone hand-edits a
-`<nav>` block out of sync.
-
-### Order of operations on a full sync
-
-```bash
-./scripts/sync.sh --all          # = the wrapper for everything below
-
-# 1. Bulk file fetch (local mirror — gitignored, not deployed)
-scripts/dl-aaro.sh   scripts/dl-nasa.sh   scripts/dl-nara.sh   …
-
-# 2. External source discovery → write per-mirror .cache JSON
-scripts/scrape-nasa.py    scripts/scrape-nara.py
-scripts/scrape-aaro.py    scripts/scrape-geipan.py
-scripts/scrape-uk.py      scripts/scrape-brazil.py
-scripts/scrape-chile.py   scripts/harvest-tna.py
-scripts/spider.py         # generic BFS crawler, ~10 site configs
-
-# 3. Release backfill — download missing PDFs, upload to GH release,
-#    refresh release-manifest.json
-scripts/backfill-release.py --upload
-
-# 4. Emit per-mirror HTML (consumes step 2 + 3 results)
-scripts/build-nasa.py    scripts/build-nara.py
-scripts/build-aaro.py    scripts/build-geipan.py
-scripts/build-uk.py      scripts/build-brazil.py
-scripts/build-chile.py   scripts/build_batch3.py
-scripts/build-details.py scripts/build-wargov.py
-
-# 5. Canonicalise nav + footer across the 44 hand-written HTML files
-scripts/sync-nav.py
-scripts/sync-footer.py
-
-# 6. Ancillary outputs
-scripts/build-api.py     scripts/build-feeds.py
-scripts/build-geo.py     scripts/build-og.py
-scripts/validate-manifests.py
-scripts/check-sources.py
-
-# 7. Ship
-git push origin main
-```
-
-`scripts/update_all.sh` wraps the typical subset; `sync.sh` is the
-interactive entry point.
-
-### CI pipeline (`.github/workflows/`)
-
-| Workflow | Trigger | Stages run |
-| --- | --- | --- |
-| `scrape.yml`        | Monday 06:00 UTC + manual | scrapers → spider → builds → api/feed/geo → sitemap → commit & push |
-| `sync-nav.yml`      | push / PR touching *.html or template | `sync-nav.py --check` (drift gate) |
-| `sync-footer.yml`   | push / PR touching *.html or template | `sync-footer.py --check` (drift gate) |
-| `html-validate.yml` | push / PR on *.html | `npx html-validate` over every file |
-| `links.yml`         | push, PR, weekly Mon 07:00 UTC | lychee link check + `.lycheeignore` |
-| `lighthouse.yml`    | push / PR on *.html / *.css / *.js | Lighthouse CI on 8 representative URLs |
-
-All workflows fail the build on regression — no nav drift, no broken
-links, no malformed HTML, no Core Web Vitals collapse can land silently.
+Secrets used in CI: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+`CLOUDFLARE_R2_ACCESS_KEY`, `CLOUDFLARE_R2_SECRET_KEY`, `LHCI_GITHUB_APP_TOKEN`.
 
 ---
 
-## Hosting on GitHub Pages
+## Hosting
 
-The repo is **GitHub-Pages-ready** out of the box.
+**Cloudflare Pages** (project `realufo`, production branch `main`). Build
+command `pnpm build`, output `dist/`. Custom domain `realufo.org`; per-deploy
+previews at `https://<sha>.realufo.pages.dev/`.
 
-The `.gitignore` keeps the repo under 1 GB by excluding the bulky payloads:
+**Binary CDN.** Committed images stay in Git (small, frequently shown). PDFs and
+videos are excluded (`.gitignore` §5.2: any file > 100 MB, all PDF dirs, all
+video dirs) and served from:
 
-- `bundles/Release_1.zip`, `bundles/uapvideos.zip` (~2.5 GB combined)
-- `bundles/uapvideos/` (DVIDS bulk videos, 1.2 GB)
-- `aaro/videos/` (32 AARO videos, 2.7 GB)
-- Any single PDF over GitHub's 100 MB single-file limit
+- **GitHub Releases** — `videos-v1` (mp4), `pdfs-v1` (PDFs), plus per-archive
+  tags. URL pattern:
+  `https://github.com/hectorchanht/gov-ufo-archive/releases/download/<tag>/<file>`.
+- **Cloudflare R2** — bucket `realufo`, served via `assets.realufo.org`. Used
+  for the 4 active archives' binaries and >2 GB overflow.
 
-Result: a `git push`-friendly repo of about 150 MB.
-
-On the live site, any asset that wasn't committed shows a `SOURCE` badge and
-links straight back to the official URL. Visitors who want a fully local
-copy just clone the repo and run `./scripts/sync.sh`.
-
-### How the local-vs-source switch actually works
-
-Every asset card carries **both** a local relative path and the original
-source URL. The page chooses dynamically:
-
-- **Images** use `<img src="./local.jpg" onerror="this.src='source_url'">` —
-  if the local file is missing (e.g. on GitHub Pages where the file was
-  gitignored), the browser silently swaps in the official URL.
-- **Buttons** always show a `Source ↗` chip alongside the `Download` chip
-  when both a local file and a source URL exist. Two routes, always one
-  that works.
-- **The HTML never has to change**. The build scripts regenerate the
-  embedded manifest from current disk state on every run — newly-downloaded
-  files automatically pick up local routing, missing files automatically
-  fall back to source.
-
-So the workflow is:
-
-```bash
-./scripts/sync.sh        # downloads new files, rebuilds manifests
-git add -A && git commit # commit whatever the .gitignore lets through
-git push                 # ship — visitors get the right route per asset
-```
-
-### Enable Pages
-
-```bash
-git init
-git add .
-git commit -m "Initial archive"
-gh repo create war-gov-ufo-release --public --source=. --push
-# then in repo Settings → Pages, set Source = main branch, root.
-```
+Any asset not present locally renders with a `SOURCE` badge linking to the
+official URL. Images use `<img onerror>` to fall back automatically; video uses
+two `<source>` children (local + remote). The HTML never has to change — the
+manifest is regenerated from current disk/R2 state on every build.
 
 ---
 
-## Keeping the archive current (cron / scheduled)
-
-Multiple governments release new materials on a rolling basis. Re-run
-`sync.sh` periodically to capture new tranches:
-
-### Weekly cron (Linux / macOS)
-
-```cron
-# Every Monday at 03:00 local time
-0 3 * * 1   cd /path/to/war-gov-ufo-release && ./scripts/sync.sh >> sync.log 2>&1
-```
-
-### Faster, with auto-commit (optional)
-
-Wrap `sync.sh` to commit and push any new files automatically:
-
-```bash
-#!/usr/bin/env bash
-cd "$(dirname "$0")"
-./scripts/sync.sh >> sync.log 2>&1
-git add -A
-git diff --quiet --staged || git commit -m "sync: $(date -u +%Y-%m-%dT%H:%MZ)"
-git push
-```
-
-### macOS launchd
-
-```xml
-<!-- ~/Library/LaunchAgents/com.user.uap-archive-sync.plist -->
-<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.user.uap-archive-sync</string>
-  <key>WorkingDirectory</key><string>/Users/you/code/war-gov-ufo-release</string>
-  <key>ProgramArguments</key><array>
-    <string>/bin/bash</string>
-    <string>scripts/sync.sh</string>
-  </array>
-  <key>StartCalendarInterval</key><dict>
-    <key>Weekday</key><integer>1</integer>
-    <key>Hour</key><integer>3</integer>
-  </dict>
-  <key>StandardOutPath</key><string>sync.log</string>
-  <key>StandardErrorPath</key><string>sync.log</string>
-</dict></plist>
-```
-
-`launchctl load ~/Library/LaunchAgents/com.user.uap-archive-sync.plist`
-
-### GitHub Actions (archive + auto-publish)
-
-For a hands-off, public archive: schedule sync in GitHub Actions and let it
-push directly to Pages.
-
-```yaml
-# .github/workflows/sync.yml
-name: Weekly sync
-on:
-  schedule: [{ cron: "0 3 * * 1" }]
-  workflow_dispatch:
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install curl_cffi
-      - run: ./scripts/sync.sh --no-videos    # videos are too large for Pages
-      - name: Commit any new files
-        run: |
-          git config user.name "uap-archive"
-          git config user.email "uap-archive@users.noreply.github.com"
-          git add -A
-          git diff --quiet --staged || git commit -m "sync: $(date -u +%Y-%m-%d)"
-          git push
-```
-
----
-
-## Selective sync flags
-
-```bash
-./scripts/sync.sh                # interactive picker (multi-select)
-./scripts/sync.sh --all          # full run
-./scripts/sync.sh --aaro-only    # one archive only (replace slug)
-./scripts/sync.sh --no-videos    # skip the big AARO videos (≈2.7 GB)
-./scripts/sync.sh --no-build     # download only, no HTML rebuild
-```
-
-Useful combos:
-
-```bash
-# Day 1: quick browsable archive without the multi-gig video downloads
-./scripts/sync.sh --no-videos
-
-# Day 2: pull the videos in a background terminal
-bash scripts/dl-aaro.sh assets
-
-# Anytime: refresh just one archive after a new case release
-./scripts/sync.sh --chile-only
-```
-
----
-
-## Why two source strategies?
+## Why two scrape strategies?
 
 | Source | Why it's hard | What we use |
 | --- | --- | --- |
-| `www.war.gov`, `www.aaro.mil` | Akamai TLS fingerprinting blocks `curl`, `wget`, `requests`. | `curl_cffi` (Chrome TLS impersonation), Wayback fallback. |
-| `cdn.dvidshub.net`, AARO cloudfront | None — public CDN. | Direct `curl`. |
-| `discovery.nationalarchives.gov.uk` | Official Discovery JSON API — well-mannered. | Direct paged JSON. |
-| `cnes-geipan.fr`, `sefaa.cl`, `fab.mil.br`, … | Plain HTML; sometimes Cloudflare-fronted. | `spider.py` (BFS crawl + rate limit). |
+| `www.war.gov`, `www.aaro.mil` | Akamai TLS fingerprinting blocks `curl`/`wget`/`requests`. | `curl_cffi` (Chrome TLS impersonation), Wayback fallback. |
+| `cdn.dvidshub.net`, AARO cloudfront | Public CDN. | Direct `curl`. |
+| `discovery.nationalarchives.gov.uk` | Official Discovery JSON API. | Direct paged JSON. |
+| `cnes-geipan.fr`, `sefaa.cl`, `fab.mil.br`, … | Plain HTML, sometimes Cloudflare-fronted. | `spider.py` (BFS crawl + rate limit). |
 
-If `curl_cffi` still gets 403 from war.gov, you're probably on a known
-data-center / VPN IP that Akamai blocks. Run from a residential or
-corporate-office connection.
+If `curl_cffi` still gets 403 from war.gov you're probably on a known
+data-center / VPN IP that Akamai blocks — run from a residential connection.
 
 ---
 
 ## Page features (every archive)
 
-- **Cinematic hero carousel** rotating through declassified imagery and
-  official UAP videos
-- **Headlines strip** — the mission distilled into 6 cards
-- **Evidence browser** with shared control logic:
-  - 5–8 type tabs
-  - Sort by status / title / date / agency
-  - Filter by region, agency, case status, redaction
-  - Full-text search across title, description, location, VIRIN, DVIDS ID
-  - 12 / 24 / 48 / 96 per page
-  - Pagination with "1 2 … 6 7 8 … N" + page info
-- **Full context per asset** — agency, incident date & location, release
-  date, VIRIN, DVIDS ID, PDF / video pairings, alt text, case status badge
-  (Unresolved / Undergoing Analysis / Resolved / Closed)
-- **Click-to-preview lightbox** — images, videos, audio, and PDFs all open
-  in-place; `Esc` to close, ←/→ to navigate, swipe on mobile
-- **`LOCAL` / `SOURCE` badges** so it's always clear whether a file is on
-  disk or links back to the official URL
-- **Cross-archive search** at `/search.html` with `?q=` deep links and
-  `/` hotkey to focus the input
+- **Cinematic hero carousel** rotating through declassified imagery and videos.
+- **Headlines strip** — the mission distilled into 4–6 cards.
+- **Evidence browser** — type tabs, sort by status/title/date/agency, filter by
+  region/agency/case-status/redaction, full-text search, 12/24/48/96 per page,
+  paginated.
+- **Full context per asset** — agency, incident date & location, release date,
+  VIRIN, DVIDS ID, PDF/video pairings, alt text, case-status badge.
+- **Click-to-preview lightbox** — images, videos, audio, PDFs open in-place;
+  `Esc` closes, ←/→ navigate, swipe on mobile.
+- **`LOCAL` / `SOURCE` badges** so it's always clear whether a file is on the
+  archive or links to the official URL.
+- **Cross-archive search** at `/search/` with `?q=` deep links and `/` hotkey.
 
 ---
 
 ## Notes & limits
 
-- Public-domain attribution per source jurisdiction (US 17 U.S.C. § 105,
-  UK OGL v3, France Loi 78-753, Brazil LAI 12.527/2011, Chile 20.285,
-  Argentina 27.275, Italy D.lgs. 33/2013, Spain 19/2013, Uruguay 18.381,
-  …). Page content reproduced verbatim from the original publications.
-- About 22 / 58 AARO PDFs and 13 / 21 AARO images **were never archived by
-  the Wayback Machine** and no longer resolve from aaro.mil directly because
-  of Akamai. They appear with the `SOURCE` badge and link to the original
-  URL; click-through may 403.
-- The Vercel/Next/React skill hints in the commit history come from
-  unrelated tooling — this project is a pure static HTML archive. No build
-  step. No runtime. No framework.
+- **Public-domain attribution per jurisdiction** — US 17 U.S.C. § 105, UK OGL
+  v3, France Loi 78-753, Brazil LAI 12.527/2011, Chile 20.285, Argentina
+  27.275, Italy D.lgs. 33/2013, Spain 19/2013, Uruguay 18.381. Content
+  reproduced verbatim from the original publications.
+- **Release 03** (war.gov, 12 Jun 2026) added 72 rows. Most assets are live on
+  R2; two large AARO videos (`DOD_111764796.mp4` ≈ 2.99 GiB, `DOD_111764902.mp4`
+  ≈ 1.19 GiB) exceed wrangler's 300 MiB single-request cap and await an
+  S3-multipart upload path — until then their two AUD cards click through to a
+  404. Tracked in `.planning/STATE.md`.
+- Some AARO PDFs/images were never archived by the Wayback Machine and no longer
+  resolve from aaro.mil directly (Akamai) — they show a `SOURCE` badge; the
+  click-through may 403.
 
 ---
 
 ## License
 
-Code in `scripts/` and `download.py`: MIT.
+Code in `scripts/` and `src/`: MIT.
 Archived content: each source's national public-domain regime (see above).

@@ -1,261 +1,308 @@
 # Technology Stack
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-07-11
 
-## Summary — what makes this stack unusual
-
-realufo.org is a **pure-HTML static site with zero frontend build tooling**.
-There is no `package.json`, no `requirements.txt`, no `tsconfig.json`, no
-bundler, no transpiler, no framework. Every page is a single self-contained
-`.html` file with inline `<style>` and inline `<script>` blocks. Python
-scripts under `scripts/` generate the HTML by string-templating against
-manifests; the browser is handed plain HTML+CSS+JS.
-
-Two complications layered on top of that bare-metal foundation:
-
-1. **Offline-first delivery** — a service worker (`sw.js`) precaches the app
-   shell and runtime-caches every JSON manifest and image so the entire site
-   keeps working after one cold load. Bundled in `manifest.webmanifest` as
-   an installable PWA.
-2. **GitHub Releases as a CDN for large binaries** — every PDF and video over
-   the GitHub-blob-size threshold is uploaded to a release tag (`pdfs-v1`,
-   `videos-v1`, `wargov-r02-v1`, `aaro-v1`, …). The repo only commits
-   thumbnails and HTML; `release-manifest.json` maps `basename → release
-   download URL` so build scripts can rewrite card `url` fields at
-   generate-time.
+> **This document supersedes the 2026-05-25 STACK.md**, which described the
+> pre-migration pure-HTML/Python stack (198+ commits stale). realufo.org has
+> since migrated to Astro 5 + Cloudflare Pages (CLAUDE.md §13; Phase 4 closed
+> 2026-05-28). This rewrite verifies everything against `package.json`,
+> `astro.config.mjs`, `src/`, `scripts/`, and git as checked out on branch
+> `quick/260615-3e3-wargov-release-03` (forked from `main` post-Phase-4).
 
 ## Languages
 
 **Primary:**
-- **HTML5** — every user-facing page, ~50 files, inline CSS + inline JS, no
-  external bundler. Largest: `index.html` (479 KB, 2237 lines) and
-  `search.html` (72 KB, 1260 lines).
-- **JavaScript (vanilla ES2015+)** — inline in every page. No framework. No
-  TypeScript. Pages share copy-pasted helpers (lightbox, nav toggle, search)
-  that are kept in sync by `scripts/sync-nav.py` / `scripts/sync-footer.py`
-  drift gates.
-- **Python 3.11** — every build / scrape / asset script under `scripts/`,
-  ~50 files. Standard library only except `curl_cffi`.
-- **Bash** — per-archive download orchestrators (`scripts/dl-*.sh`,
-  `scripts/sync.sh`).
+- **TypeScript `~5`** (strict) — `tsconfig.json` extends
+  `astro/tsconfigs/strict`; covers content-collection schema
+  (`src/content.config.ts`), service worker (`src/sw.ts`), client-side
+  helper modules (`src/scripts/*.ts`).
+- **Astro component syntax** (`.astro` — TS + HTML + scoped CSS) —
+  `src/pages/**/*.astro`, `src/components/*.astro`, `src/layouts/*.astro`.
 
 **Secondary:**
-- **CSS** — inline in every HTML page. No external stylesheet (except
-  vendored `leaflet.css`).
-- **JSON** — `release-manifest.json`, `api/*.json`, per-page embedded
-  `<script id="archive-manifest" type="application/json">` blocks.
-- **CSV** — `uap-data.csv` (R01+R02 combined, 298 KB) and the legacy
-  `uap-release001.csv` are the source of truth for the war.gov manifest;
-  `scripts/build-wargov.py` reads them.
-- **XML** — `sitemap.xml`, per-archive Atom feeds under `feeds/`.
+- **Python 3.11** (CI-pinned via `actions/setup-python@v5`) — build-time
+  normalisers (`scripts/normalize-{csv,aaro,nara,nasa,nz,uruguay}.py`),
+  downloaders (`scripts/download-war.gov.py`, `scripts/dl-*.sh`
+  companions), DVIDS-ID resolvers (`scripts/resolve-dvids-{r01,r03}.py`),
+  verification utilities (`scripts/verify-fidelity.py`,
+  `scripts/verify-lighthouse-budgets.py`), and the legacy build/scrape
+  scripts still consumed by `scrape.yml` for the 11 dormant archives
+  (`scripts/build-{brazil,chile,geipan,uk,api,cases,feeds,geo,og,
+  pages-index,stories,sw}.py`, `scripts/build_batch3.py`). No
+  `requirements.txt` / `pyproject.toml` — the sole non-stdlib dependency
+  (`curl_cffi`, for Akamai TLS-impersonation) is `pip install`-ed ad hoc in
+  CI steps and locally; convention is documented inline as "stdlib-only
+  except curl_cffi" (`scripts/_archive_common.py`, `scripts/normalize-
+  csv.py`, `scripts/snapshot-urls.py` docstrings).
+- **Bash** — `scripts/sync.sh`, `scripts/dl-*.sh`, `scripts/copy-legacy-
+  archives.sh` (postbuild), `scripts/verify-redirects.sh`,
+  `scripts/verify-python-retired.sh`.
+
+**Active-surface Python build retirement (Plan 04-20):** `scripts/build-
+wargov.py`, `build-details.py`, `sync-nav.py`, `sync-footer.py`, `parse-
+aaro.py`, `extract-evidence.py`, `build-aaro.py`, `build-nasa.py`, `build-
+nara.py`, `build-{nz,uruguay,argentina,italy,canada,peru,spain}.py` are all
+**confirmed deleted** (verified directly — `ls scripts/` does not contain
+any of them). `scripts/verify-python-retired.sh` CI-asserts they stay
+deleted and that the whitelisted survivors (`spider.py`, `build-
+redirects.py`, the `scrape.yml`-consumed builders, `copy-legacy-
+archives.sh`) stay present. The 4 active archives (wargov, aaro, nasa,
+nara) are 100% Astro + content collections — no Python generates their
+HTML.
 
 ## Runtime
 
-**Browser runtime:**
-- Targets evergreen browsers (Chrome, Safari, Firefox). Service worker
-  requires HTTPS in production.
-- No transpilation; relies on native ES2015+, `fetch`, `URLSearchParams`,
-  `IntersectionObserver`.
-
-**Build / scrape runtime:**
-- **Python 3.11** (pinned in `.github/workflows/scrape.yml` via
-  `actions/setup-python@v5`).
-- **Node 20** (pinned via `actions/setup-node@v4`) — only used in CI for
-  `html-validate` and `@lhci/cli`. Not required to develop or build the
-  site.
-- **Bash** — POSIX-compliant, runs on macOS and Ubuntu CI.
-- **`poppler-utils`** (`pdftotext`) — Linux system package, used by
-  `scripts/extract-pdf-text.py` for full-text indexing.
-- **`librsvg2-bin`** (`rsvg-convert`) — Linux system package, used by the
-  weekly CI to rasterise Open Graph SVGs to PNG for Facebook.
+**Environment:**
+- **Node.js `>=22 <23`** (`package.json#engines.node`) — single major line
+  pinned, not just a floor.
+- `.nvmrc` pins `22` exactly. Cloudflare Pages auto-detects this.
 
 **Package Manager:**
-- **`pip`** — single Python dependency installed ad-hoc:
-  `pip install curl_cffi` (`scripts/sync.sh:139`, `.github/workflows/scrape.yml`).
-  No `requirements.txt` is committed.
-- **`npm`** — no `package.json`. CI installs `html-validate` and `@lhci/cli`
-  with `npm install --no-save` per run. No lockfile.
+- **pnpm `9.15.9`** — pinned via `package.json#packageManager`. CI
+  workflows use `pnpm/action-setup@v4` with the `version:` input
+  deliberately omitted (setting both the action input and
+  `packageManager` throws `ERR_PNPM_BAD_PM_VERSION`; `packageManager`
+  alone drives the resolved version).
+- Lockfile `pnpm-lock.yaml` (310 KB) committed; CI always runs `pnpm
+  install --frozen-lockfile`.
 
 ## Frameworks
 
-**Frontend frameworks:**
-- **None.** Explicit design decision (CLAUDE.md §11: "Generates a
-  self-contained `.html` (CSS inline, JS inline). Zero build tooling.").
-  No React, Vue, Svelte, Astro, Eleventy, Hugo, Jekyll. The build step is
-  literally `python3 scripts/build-<slug>.py` doing string substitution
-  against a single template per archive type.
+**Core:**
+- **Astro `~5.18.0`** (tilde-pinned; lockfile resolves `5.18.2`) — static
+  site generator, `output: 'static'` in `astro.config.mjs`, no SSR.
+  **Do not bump to Astro 6.x** without reading
+  `.planning/decisions/astro-version-pin.md` first — the pin persists past
+  the original trigger (astro#15684, a Cloudflare-adapter prerender
+  regression, closed 2026-03-11) because a 6.x jump also requires a
+  coordinated Zod 3→4 migration, a Content Layer API surface re-verify,
+  and an `@astrojs/cloudflare` 12.x→13.x adapter jump — deferred to a
+  single ADR-gated transition at a future phase close, not done
+  piecemeal.
+- **`@astrojs/cloudflare` `^12.6.0`** — Cloudflare Pages adapter;
+  peerDependency `astro: ^5.7.0` transitively locks it to the same 5.x
+  family as the tilde pin. No SSR / Worker bindings used.
+- **No client-side hydration framework** — zero React/Vue/Svelte/Solid.
+  All interactivity is `<script is:inline>` vanilla JS following CLAUDE.md
+  §7 (lightbox, hamburger nav, `/`-focuses-search, filter/sort, `?q=`
+  persistence).
 
-**Static site generator:**
-- Custom Python templating in `scripts/templates/` —
-  `head.py`, `nav.py`, `footer.py`, `lightbox.py`, `i18n.py`, `shared.py`,
-  `archive.py`. Re-exported through `scripts/_site_template.py` and
-  `scripts/_mirror_shared.py`. Each `scripts/build-<slug>.py` glues these
-  together and emits one HTML file per archive root.
+**Content collections:**
+- `src/content.config.ts` defines one Astro Content Collection per archive
+  slug — all 15 per CLAUDE.md §2 — each using Astro's `file()` loader
+  against `data/<slug>.json`. Two schema shapes:
+  - `wargovEnvelopeSchema` — CSV-column-keyed with **literal spaces in
+    keys** (`'Release Date'`, `'DVIDS Video ID'`, `'PDF | Image Link'`,
+    etc.) — intentional fidelity contract with `uap-data.csv`'s header row.
+  - `catalogEnvelopeSchema` — abbreviated-key shape (`t`, `ti`, `de`, `ag`,
+    `cat`, `date`, `region`, `l`, `u`, `s`, `th`) shared by the other 14
+    archives, matching the historical Python `scripts/templates/
+    archive.py` output byte-for-byte.
+  Validated with **Zod 3** (`z` re-exported from `astro:content`).
+  `.strict()` on both the wargov row schema and the catalog asset schema —
+  any unknown field is a hard Astro build failure (drift signal, not a
+  silent drop). **No `z.transform()` / `z.preprocess()` anywhere** — this
+  is a deliberate content-fidelity guard so smart quotes, em-dashes, and
+  accented characters round-trip byte-exact.
+- Only **4 of the 15 collections are consumed by a rendered page**
+  (`wargov`, `aaro`, `nasa`, `nara`). The other 11 (`geipan`, `uk`,
+  `brazil`, `chile`, `argentina`, `canada`, `italy`, `nz`, `peru`, `spain`,
+  `uruguay`) are schema-valid but currently backed by data files with
+  empty `assets: []` — scaffolding for a future re-activation per
+  CLAUDE.md §2, not dead weight to clean up. Two of them (`nz`,
+  `uruguay`) already have Astro page templates at `src/pages/nz/
+  index.astro` and `src/pages/uruguay/index.astro`, unused while the
+  archive stays dormant.
+- Sharded data files exist for pagination beyond the primary entry:
+  `data/wargov-shard-{2..6}.json`, `data/aaro-shard-1.json`, `data/nara-
+  shard-1.json`. `data/README.md` documents the envelope shape.
 
-**Testing:**
-- **No unit-test framework.** No `pytest`, no Jest. Validation is at the
-  manifest layer (`scripts/validate-manifests.py`) and the artifact layer
-  (HTML validate + Lighthouse + lychee link check in CI).
+**Build-time data pipeline:**
+- `pnpm prebuild` → `python3 scripts/normalize-csv.py` — parses
+  `uap-data.csv` (source of truth per CLAUDE.md §11 — never hand-edited),
+  rewrites PDF/video URLs to Cloudflare R2 via `scripts/_archive_common.py
+  rewrite_to_r2()`, emits `data/wargov.json` + shards.
+- `pnpm postbuild` → `bash scripts/copy-legacy-archives.sh` — does two
+  jobs despite the filename: (1) runs `pnpm exec pagefind --site dist` to
+  build the search index; (2) copies the 11 dormant archives' git-tracked
+  legacy HTML (relocated under `legacy/<slug>/` in Phase 04.1) into
+  `dist/<slug>/` via `git ls-files` enumeration — so gitignored PDFs/
+  videos are never copied — stripping the `legacy/` prefix so
+  `URL-CONTRACT.txt` routes stay stable. Enforces the CF Pages 25 MiB/file
+  limit per copy.
 
-**Build / dev:**
-- **`scripts/sync.sh`** — master interactive picker. Downloads sources +
-  rebuilds every archive HTML.
-- **`scripts/build-sw.py`** — stamps the service-worker version with the
-  current git short SHA + UTC date (`const VERSION = '<sha>-<YYYYMMDD>';`)
-  so a deploy invalidates stale caches.
-- **`python3 -m http.server 8000`** — local preview (used by Lighthouse CI
-  in `.github/workflows/lighthouse.yml`).
+**Search:**
+- **Pagefind `^1.5`** (lockfile: `1.5.2`) — replaces the pre-migration
+  Lunr `api/all.json` (4.6 MB blob). Invoked via `pnpm exec pagefind
+  --site dist` inside `copy-legacy-archives.sh`, not a standalone build
+  step. Indexes only pages carrying `data-pagefind-body` (set by
+  `RootLayout.astro` for the 4 active archives); dormant pages emit
+  `data-pagefind-ignore` on `<main>` so Pagefind skips them. Query UI:
+  `src/pages/search.astro`.
+
+**Offline / Service Worker:**
+- **`@vite-pwa/astro` `^1.2.0`**, `strategies: 'injectManifest'` (NOT
+  `generateSW`) — configured in `astro.config.mjs`, compiles `src/sw.ts`
+  and injects the Workbox precache manifest into `self.__WB_MANIFEST`.
+  - `registerType: 'autoUpdate'`, `injectRegister: false` —
+    registration is hand-rolled in `src/layouts/BaseHead.astro`
+    (`<script is:inline>`) with `updateViaCache: 'none'` explicitly set —
+    a non-negotiable kill-switch invariant carried over from Phase 1.
+  - **Workbox 7** (`workbox-precaching`, `workbox-routing`, `workbox-
+    strategies`, `workbox-cacheable-response`, `workbox-expiration`, all
+    `^7.4.1`) imported directly in `src/sw.ts` — full manual control, not
+    plugin-auto-wired.
+  - `astro.config.mjs` includes an inline custom Astro integration
+    (`swRelocator`) that works around the CF adapter forcing
+    `output==='server'` internally: `@vite-pwa/astro` would otherwise
+    emit the SW to `dist/_worker.js/sw.js` (unreachable as a static
+    asset). `swRelocator` copies it to `dist/sw.js` and deletes the
+    worker-bundle copy at the `astro:build:done` hook.
+  - `injectManifest.globDirectory` explicitly pinned to `dist/` (root),
+    overriding the CF-adapter-induced default. `globPatterns`: HTML/CSS/
+    JS/SVG/webp/png/jpg/jpeg/woff2/ico + `pagefind/pagefind*.{js,css}`
+    (core only). `globIgnores`: PDFs/videos/audio/zip, `sw.js` itself,
+    `workbox-*.js`, `_worker.js/**`, `_routes.json`, Pagefind index/
+    fragment shards (lazy-loaded on query, not precached).
+    `maximumFileSizeToCacheInBytes: 5 MiB`.
+  - **Runtime caching** (`src/sw.ts`, 5 tiers): HTML navigation →
+    `NetworkFirst` (3s timeout, denylist `/admin`, `/_`, `/api`); JSON +
+    Pagefind meta/index shards → `StaleWhileRevalidate`; images+fonts
+    (same-origin + `https://assets.realufo.org`) → `CacheFirst` (allows
+    opaque status-0 responses via `CacheableResponsePlugin` for
+    cross-origin R2); PDFs/videos/audio/zip → explicit `NetworkOnly`
+    (never precached or runtime-cached — size-prohibitive); `/admin`,
+    `/_`, `/api` → explicit `NetworkOnly` denylist route.
+  - Cache name templated `realufo-v<COMMIT_SHA[:7]>` via Vite `define` at
+    build time (`'dev'` fallback locally); stale-prefix caches purged on
+    `activate` before `clients.claim()`.
+  - `ALLOW_SKIP_WAITING` hardcoded `false` in `src/sw.ts` — Phase 4 deploy
+    state; a later cutover phase is expected to flip this once users have
+    transitioned off the Phase-1 kill-switch SW.
+
+**Fonts:**
+- **`@fontsource/source-serif-4` `^5.2.9`** + **`@fontsource/jetbrains-
+  mono` `^5.2.8`** — self-hosted (imported directly in `BaseHead.astro`),
+  replacing the pre-migration Google Fonts CDN preconnect. Woff2 ships
+  from `dist/_astro/` and is precached by the SW. CLAUDE.md §3.3 — no
+  third font family permitted.
+
+**Testing (dev dependencies):**
+- **Playwright `1.49.0`** (+ `@playwright/test` `1.49.0`) — visual
+  regression vs 60 PNG baselines, tone-colour `getComputedStyle`
+  assertions, JS-off rendering hard-gate, SW invariant grep-assertions.
+- **`@lhci/cli` `0.14.0`** — Lighthouse CI; mobile perf budget gate,
+  **HARD-fail since Phase 4 close** (`scripts/verify-lighthouse-
+  budgets.py --hard-fail` parses LHCI JSON output in CI).
+
+**Build/Dev:**
+- Standard `astro dev` / `astro build` / `astro preview` — no custom Vite
+  plugins beyond the inline `swRelocator` integration noted above.
+- Markdown pipeline explicitly hardened in `astro.config.mjs`:
+  `smartypants: false`, `remarkPlugins: []`, `rehypePlugins: []` — defends
+  content-fidelity byte-equality (Astro's default smartypants would
+  otherwise silently rewrite quotes/dashes/ellipses in archive card text,
+  breaking the 115-sample fidelity test).
 
 ## Key Dependencies
 
-**Critical Python:**
-- **`curl_cffi`** (latest) — TLS-impersonating HTTP client. Used by
-  `scripts/download-war.gov.py` and `download.py` to defeat Akamai bot
-  protection on `www.war.gov` (curl/wget/requests all get 403'd by JA3
-  fingerprinting). Cycles through Chrome impersonation profiles 124, 120,
-  116, 110. Only mirror downloader that needs it; everything else uses
-  standard `urllib.request`.
-
-**Critical CLI tools:**
-- **`gh` (GitHub CLI)** — used by `scripts/backfill-release.py` and
-  `scripts/build-aaro.py` to enumerate (`gh release view <tag> --json
-  assets`) and upload (`gh release upload <tag> --clobber <files>`) binary
-  assets. Auth via standard `gh auth login`.
-- **`git`** — every build script calls `git ls-files <dir>/` (not
-  `os.listdir`) so the deployed site only points `a.local` at files that
-  are *actually committed* (CLAUDE.md §6.2). Gitignored files route through
-  their release URL instead.
-- **`curl`** — used by every `scripts/dl-*.sh` bash downloader with a
-  Chrome 131 User-Agent spoofed via the `UA=...` constant and a Wayback
-  Machine fallback (see INTEGRATIONS.md).
-
-**Vendored browser libraries** (`assets/vendor/`, all served same-origin so
-they work offline):
-- **`leaflet/leaflet.js` + `leaflet.css`** — used only by `map.html` for
-  the global incident map. Vendored so the map works offline (precached in
-  `sw.js:37-38`).
-- **`lunr/lunr.min.js`** — full-text search index used by `search.html`
-  (line ~1 — `<script defer src="/assets/vendor/lunr/lunr.min.js">`).
-  Index is built per page from `/api/all.json` plus the PDF text extracts.
-- **`hotkeys.js`** — keyboard shortcuts (`/` to focus search, etc.).
-- **`citation.js`**, **`related-media.js`**, **`share.js`** — small UI
-  helpers loaded on archive detail pages.
-
-**Web fonts:**
-- **Source Serif 4** and **JetBrains Mono** — served from Google Fonts
-  (`https://fonts.googleapis.com` + `https://fonts.gstatic.com`). The only
-  third-party CSS allowed (CSP `style-src 'self' 'unsafe-inline'
-  https://fonts.googleapis.com`). Preconnected in `<head>`. CLAUDE.md §3.3
-  bans a third font.
-
-**Analytics:**
-- **Umami** — cookieless, log-only analytics from `cloud.umami.is`. One
-  tag per page: `<script defer src="https://cloud.umami.is/script.js"
-  data-website-id="9c4f36ef-30ad-4d76-947a-1724fe6acdba">`. Only third-party
-  JS allowed by CSP. No Google Analytics, no Plausible, no Sentry.
+**Critical:**
+- `astro` `~5.18.0` — rendering pipeline for the 4 active archives.
+- `@astrojs/cloudflare` `^12.6.0` — Cloudflare Pages deploy adapter.
+- `zod` `^3` — content-collection schema validation; hard gate against
+  silent data drift.
+- `pagefind` `^1.5` — cross-archive + per-archive search index/query.
+- `@vite-pwa/astro` `^1.2.0` + 5× `workbox-*` `^7.4.1` — offline-first
+  service worker.
 
 **Infrastructure:**
-- **GitHub Pages** — hosting. `CNAME` file is just `realufo.org`. Pages
-  serves `/api/*.json` with `Access-Control-Allow-Origin: *` per
-  `api/README.md`.
-- **GitHub Releases** — binary CDN. Tags observed in use: `pdfs-v1`,
-  `videos-v1`, `wargov-r02-v1`, `aaro-v1`. Release URL pattern:
-  `https://github.com/hectorchanht/war-gov-ufo-release/releases/download/<tag>/<basename>`
-  (`scripts/build-aaro.py`, `release-manifest.json`).
-- **GitHub Actions** — six workflows (see below).
+- `papaparse` `^5` + `@types/papaparse` `^5` — installed in
+  `dependencies`/`devDependencies` but **no usage found anywhere under
+  `src/`** (verified by repo-wide grep for `papaparse`/`Papa\.`). CSV
+  parsing for `uap-data.csv` happens entirely in Python
+  (`scripts/normalize-csv.py`, stdlib `csv`), not via this JS library.
+  Likely a leftover install from an earlier plan iteration — harmless,
+  but a candidate for pruning in any future dependency-audit pass.
+- `@fontsource/source-serif-4`, `@fontsource/jetbrains-mono` — self-hosted
+  font assets (see Fonts above).
 
 ## Configuration
 
 **Environment:**
-- **No `.env` file** — no runtime secrets. The site is pure static HTML
-  with no backend. `.well-known/security.txt` explicitly states "We are
-  not running: User authentication, accounts, or session state; A backend,
-  database, or any server-side code; Vercel, AWS, GCP, or paid
-  third-party services."
-- **CI secrets** (GitHub repo settings):
-  - `LHCI_GITHUB_APP_TOKEN` — Lighthouse CI GitHub App
-    (`.github/workflows/lighthouse.yml`).
-  - `GITHUB_TOKEN` — auto-provided by Actions; used by the lychee
-    link-check workflow.
-- **`gh` CLI auth** — required locally for anyone running
-  `scripts/backfill-release.py` (uploads to releases). Stored in the
-  developer's keychain by `gh auth login`.
+- No `.env` file drives the Astro build — all data is filesystem-sourced
+  (`data/*.json` + `uap-data.csv`). Secrets live exclusively in GitHub
+  Actions repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+  `CLOUDFLARE_R2_ACCESS_KEY`, `CLOUDFLARE_R2_SECRET_KEY`,
+  `LHCI_GITHUB_APP_TOKEN`.
+- `astro.config.mjs` reads `process.env.COMMIT_SHA` at build time only
+  (to template the SW cache-name prefix); falls back to `'dev'`.
 
-**Build / lint config files** (all repo-root):
-- `.htmlvalidate.json` — html-validate config. `html-validate:recommended`
-  + relaxed WCAG warnings + `no-inline-style: off` (inline style is by
-  design). Excludes `aaro/pages/*` and `nara/pages/*` (upstream scraped
-  HTML that can't be rewritten).
-- `.lighthouserc.json` — desktop preset, 8 URLs, perf ≥ 0.8 (warn),
-  a11y ≥ 0.9 (error), best-practices ≥ 0.85 (warn), SEO ≥ 0.9 (error).
-- `.lycheeignore` — broken-link allowlist for the weekly lychee run.
-- `.gitignore` — large-binary policy: all `*/pdfs/`, `aaro/videos/`,
-  `geipan/videos/`, and bundle zips are ignored (CLAUDE.md §5.2).
-
-**Build config:**
-- `CLAUDE.md` itself is the master spec — design tokens, layout rules,
-  build invariants. New archives are added by following CLAUDE.md §10.
-- `release-manifest.json` (54 KB) — basename → release-URL lookup,
-  consumed by every build script via `scripts/_release_manifest.py`.
-- `scripts/dvids2dod-r01.json`, `scripts/dvids2dod-r02.json` — DVIDS
-  Video ID → DOD record-ID maps used by `scripts/build-wargov.py` to
-  resolve catalog-only VID/AUD rows to playable URLs.
+**Build:**
+- `astro.config.mjs` — `output: 'static'`, `site: 'https://realufo.org'`,
+  `trailingSlash: 'ignore'` (accepts both `/path` and `/path/` during the
+  migration coexistence window).
+- `tsconfig.json` — extends `astro/tsconfigs/strict`; includes
+  `.astro/types.d.ts` (generated) + `**/*`; excludes `dist`.
+- **No `wrangler.toml` exists in the repo.** The Cloudflare Pages project
+  (`realufo`) is configured entirely via the CF dashboard — build command
+  `pnpm build`, output dir `dist/`, framework preset `Astro` (per
+  `.planning/decisions/cf-pages-project.md`). `.github/workflows/deploy-
+  cf-pages.yml` is a **fallback** deploy path (the native CF Pages
+  GitHub-App webhook stopped firing after a repo rename from
+  `war-gov-ufo-release` → `gov-ufo-archive`) that runs `pnpm build` then
+  `wrangler pages deploy dist/ --project-name=realufo --branch=main`
+  directly via `cloudflare/wrangler-action@v3`, pinned to
+  `wranglerVersion: '4.95.0'`. A `wrangler.toml` path-filter entry exists
+  in that workflow's trigger list even though no such file is tracked —
+  harmless (the filter simply never matches).
+- `_headers` (repo root, mirrored to `public/_headers` so it ships in
+  `dist/`) — `Cache-Control: no-cache, no-store, must-revalidate` on
+  `/sw.js` (kill-switch invariant), HSTS + `X-Content-Type-Options` on
+  `/*`, immutable long-cache on `/assets/*` + `/_astro/*`.
+- `_redirects` (~8 KB) — generated by `scripts/build-redirects.py` from
+  `URL-CONTRACT.txt`; drift-gated in `quality-gates.yml`.
+- `.lighthouserc.json` (local/PR profile) + `.lighthouserc.cf.json` (CF
+  Pages preview profile, `__PREVIEW_URL__` templated at CI time via
+  `sed`) — perf budget definitions (LCP ≤ 2.5s, total transfer ≤ 500 KB,
+  HARD since Phase 4 close).
+- `.htmlvalidate.json` — HTML linting config, legacy static-page era,
+  still present (governs `legacy/` dormant HTML).
+- `manifest.webmanifest` (repo root) — legacy PWA manifest; the
+  `@vite-pwa/astro` `manifest` option in `astro.config.mjs` generates the
+  Astro-era equivalent at build time (`name: 'realufo.org — Government
+  UAP Archive'`, icons pointing at `/assets/favicon.svg`).
 
 ## Platform Requirements
 
-**Development (local):**
-- macOS or Linux. Bash, `python3.11+`, `curl`, `git` on PATH.
-- `pip install curl_cffi` if syncing the war.gov manifest.
-- `brew install poppler` (macOS) or `apt install poppler-utils` (Linux)
-  if regenerating PDF text extracts.
-- `gh` CLI authenticated if uploading new binary assets.
-- Open `index.html` directly in a browser, or run
-  `python3 -m http.server 8000` for service-worker testing.
-
-**CI (GitHub Actions, `ubuntu-latest`):**
-- Python 3.11, Node 20.
-- `poppler-utils`, `librsvg2-bin` (installed inline per workflow).
-- `curl_cffi` installed via pip (`scrape.yml`).
+**Development:**
+- Node 22.x + pnpm 9.15.9 (both version-pinned).
+- Python 3.11 for any `scripts/*.py` (normalisers, legacy scrapers/
+  builders, verification utilities). No virtualenv/lockfile convention;
+  `curl_cffi` is the only non-stdlib import, installed ad hoc.
+- `git ls-files` (never `os.path.exists`) is the mandated check for
+  whether a binary asset is actually tracked — a repo convention
+  (CLAUDE.md §4.2), enforced by `copy-legacy-archives.sh`'s use of `git
+  ls-files` for enumeration, not by a standalone lint script.
 
 **Production:**
-- **GitHub Pages** serving `main` branch. Custom domain `realufo.org` via
-  `CNAME` file. HTTPS via GitHub's auto-issued certificate.
-- **Service worker** requires HTTPS (no SW on `http://`). Local testing
-  works on `http://localhost:8000`.
-- **Large binaries** served from GitHub Releases, not Pages — Releases
-  bypass the GitHub-blob 100 MB hard limit and the Pages bandwidth caps.
-
-## CI/CD pipeline (six workflows)
-
-| Workflow | File | Trigger | Purpose |
-|---|---|---|---|
-| Weekly scrape + rebuild | `.github/workflows/scrape.yml` | `cron: '0 6 * * 1'` (Mon 06:00 UTC) + manual | Re-scrapes every upstream archive, rebuilds all HTML, regenerates `/api/*.json` + Atom feeds + Open Graph cards + geocodes, runs `scripts/check-sources.py`, updates `sitemap.xml`, stamps `sw.js`, appends CHANGELOG, commits + pushes |
-| Broken-link check | `links.yml` | push to main, PR, `cron: '0 7 * * 1'` | `lycheeverse/lychee-action@v2` against every `**/*.html` |
-| HTML validation | `html-validate.yml` | push/PR on `**/*.html` | `npx html-validate` with our config; excludes scraped upstream pages |
-| Lighthouse CI | `lighthouse.yml` | push/PR on HTML/CSS/JS | Serves with `python3 -m http.server 8000`, runs `@lhci/cli@0.14.x` |
-| Footer drift gate | `sync-footer.yml` | push/PR on HTML/templates | `python3 scripts/sync-footer.py --check` — fails if any HTML footer drifts from canonical |
-| Nav drift gate | `sync-nav.yml` | push/PR on HTML/templates | `python3 scripts/sync-nav.py --check` — same idea for nav |
-
-## What is deliberately NOT in the stack
-
-(Useful negative space for the planner.)
-
-- No TypeScript, no JSX, no SCSS, no Tailwind, no PostCSS.
-- No bundler (Vite, Webpack, Rollup, esbuild, Parcel).
-- No frontend framework (React, Vue, Svelte, Solid, Lit).
-- No SSG framework (Astro, Eleventy, Hugo, Jekyll, Next, Nuxt).
-- No backend (Node, Fastify, FastAPI, Flask, Django). No database.
-- No CDN besides GitHub Pages + GitHub Releases + Google Fonts +
-  `cloud.umami.is`.
-- No paid hosting. No Vercel, Netlify, Cloudflare Workers, AWS, GCP.
-- No CMS (Contentful, Sanity, Strapi, …). Source of truth is the CSV
-  (`uap-data.csv`) + per-archive scrapers writing into per-archive
-  manifests.
-- No auth, no sessions, no cookies (Umami is cookieless).
-- No test runner (pytest, Jest, Vitest, Playwright). Only artifact-level
-  CI checks.
-- No Docker / containers. CI runs directly on `ubuntu-latest`.
+- **Cloudflare Pages** — project `realufo`, account
+  `f1868a071996e836eae6da2b65f37929`. Production branch is `main`
+  (Phase 4 close migrated production off the interim `ssg-migration`
+  branch used through Phases 2–4; both branches still exist in the repo
+  — `ssg-migration` is now historical). Custom domain `realufo.org` (see
+  `CNAME`; DNS-authority/cutover state tracked in INTEGRATIONS.md — as of
+  the last committed ADR, DNS migration to Cloudflare was still
+  `migration-pending`, so this may be stale relative to actual production
+  DNS). Per-deployment preview URLs at `https://<sha>.realufo.pages.dev/`;
+  production preview at `https://realufo.pages.dev/`.
+- **Cloudflare R2** — bucket `realufo`, custom domain
+  `assets.realufo.org` — binary CDN for PDFs + videos on the 4 active
+  archives (full detail in INTEGRATIONS.md).
+- CF Pages hard limit: 25 MiB per file — enforced explicitly in
+  `copy_one()` inside `scripts/copy-legacy-archives.sh`, and reflected in
+  `astro.config.mjs`'s SW `maximumFileSizeToCacheInBytes` (5 MiB, more
+  conservative than the CF ceiling).
 
 ---
 
-*Stack analysis: 2026-05-25*
+*Stack analysis: 2026-07-11*

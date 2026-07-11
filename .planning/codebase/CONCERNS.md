@@ -1,477 +1,759 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-07-11
 
-> Strategic question this report informs: *should the project move to a frontend
-> framework as it grows, keep offline capability, and gain optional scrape →
-> release upload automation?* The concerns below are ordered to make that call.
-
----
-
-## Scalability Ceilings of the Plain-HTML Approach
-
-**Per-page bundle weight is already large and unbounded:**
-- `index.html` — **479 KB** (2,237 lines), embeds full Release 01 + Release 02 manifest inline as `<script id="archive-manifest">`
-- `geipan/index.html` — **3.3 MB** (largest page in the repo), all 3,000+ GEIPAN case rows inlined as JSON
-- `uk/index.html` — **512 KB**
-- `aaro/details.html` — **156 KB** (1,156 lines)
-- `aaro/index.html` — **120 KB** (1,313 lines)
-- `chile/index.html` — **100 KB**
-- `search.html` — **72 KB**, fetches `/api/all.json` (4.6 MB) once on load (recent perf win, commit 7294b29)
-
-**Impact:** Mobile users on slow 3G pay the full inlined manifest on every per-archive page visit. The 3.3 MB GEIPAN page already requires a bespoke paginator (`#pagination` sentinel in `scripts/templates/archive.py:38`) to avoid a 3000-node initial paint. The pattern does not generalise: every future archive with >500 records will need a one-off paginator or a similar bail-out.
-
-**Per-page inline JS duplication:** The same lightbox/archive renderer is inlined into ~15 archive pages plus search/timeline/map. `scripts/templates/lightbox.py` (211 lines) and `scripts/templates/archive.py` (154 lines) get duplicated into every output HTML at build time — recent commits 4fe2134, c823efb, 0c36c7f extracted `LIGHTBOX_JS` and `ARCHIVE_JS` precisely to *delete ~250 lines of duplicated inline JS*. The refactor is partial: `build-wargov.py`, `build-aaro.py`, `build-nasa.py`, `build-nara.py` still each carry their own `innerHTML` writers (counts: 0, 11, 6, 3 — wargov has its own pattern).
-
-**Manual nav sync across 15+ archives:** `scripts/sync-nav.py` (194 lines) and `scripts/sync-footer.py` (171 lines) exist solely to push canonical nav/footer HTML into every page. Two dedicated CI workflows (`.github/workflows/sync-nav.yml`, `sync-footer.yml`) act as drift gates because the cost of nav drift across 30+ HTML files is real. Adding archive #16 requires touching:
-- `scripts/sync.sh` (interactive picker case statement, lines 73–122)
-- `scripts/_site_template.py` re-exports → `scripts/templates/nav.py` (PINNED, SITE_PAGES)
-- A new `scripts/dl-<slug>.sh`
-- A new `scripts/build-<slug>.py` OR an entry in `scripts/build_batch3.py` CONFIG (already 762 lines, 7 countries)
-- 15 footers (auto), 15 nav strips (auto)
-- `sw.js` shell list if the archive ships utility pages
-
-**Cognitive load curve:** `scripts/` already contains **18 build-*.py**, **7 scrape-*.py**, **7 dl-*.sh**, plus shared/template modules. `build-aaro.py` alone is 1,360 lines. The codebase has visibly bowed toward extraction (templates/ split started in commits fcaf9bc, 33ea247, 0c36c7f, c823efb, 4fe2134) and the trajectory is the standard pre-framework refactor curve.
-
-**Files / evidence:**
-- `index.html`, `geipan/index.html`, `uk/index.html`
-- `scripts/build-aaro.py`, `scripts/build_batch3.py`, `scripts/build-wargov.py`
-- `scripts/templates/archive.py:38` (paginator bail-out)
-- `scripts/templates/shared.py`, `scripts/templates/lightbox.py`, `scripts/templates/nav.py`
-- `.github/workflows/sync-nav.yml`, `.github/workflows/sync-footer.yml`
-
-**Fix approach (strategic):** A framework move is justifiable *only* if it keeps offline-first intact. Recommended path is a static-export framework (Astro, Eleventy, or Next.js `output: 'export'`) that:
-1. Replaces inline-JSON-in-HTML with a single `/api/all.json` (already exists, 4.6 MB) fetched + cached by the service worker.
-2. Pre-renders per-archive shells (preserving HTML-first / no-JS-render-blocking guarantee).
-3. Reuses existing `templates/*.py` logic via a Python pre-step that emits MDX/Markdown frontmatter, or migrates the templating to JS once.
-4. Leaves `bundles/`, `sw.js`, GitHub Releases as the binary CDN exactly as today.
-
-The cost is real (rewrite 18 build scripts) but the alternative — adding a 16th archive — will likely require another paginator one-off and another nav-drift gate. The slope is steep.
+> Full-repo refresh of the 2026-05-25 audit (198 commits stale, pre-migration).
+> The project has since executed a big-bang Astro 5 / Cloudflare Pages
+> migration (Phases 1–4 + 4.1 complete; Phase 5 "scrape automation" ~30%
+> done and stalled). Most of the 2026-05-25 findings targeted the retired
+> plain-HTML + Python build pipeline and are now **RESOLVED BY MIGRATION**.
+> New concerns have emerged from the migration itself (dual build system,
+> disabled CI gates, broken cron pipeline). Every item below is verified
+> against the current tree at commit `e731163` (branch
+> `quick/260615-3e3-wargov-release-03`, 5 commits ahead of `main`, unmerged).
 
 ---
 
-## Offline-First Fragility
+## At a Glance — Severity Ranking
 
-### Service Worker Registered on Only 12 of ~32 Pages
+| # | Concern | Severity | Status |
+|---|---------|----------|--------|
+| 1 | `scripts/update_all.sh` calls 5 deleted Python builders — hard-broken | **HIGH** | NEW (post-migration regression) |
+| 2 | `quality-gates.yml` auto-trigger disabled since 2026-05-29 — visual-regression / fidelity / tone-colours / js-off HARD-fail / mobile Lighthouse budget do not run on any push or PR | **HIGH** | NEW (accepted risk, undocumented expiry) |
+| 3 | `scrape.yml` weekly cron hard-fails every run — references 5 deleted Python builders | **HIGH** | KNOWN — documented accepted risk (ADR), deferred to Phase 5 |
+| 4 | Release-03: 2 large AARO/DOD videos (2.99 GiB + 1.19 GiB) never reached R2 — 2 AUD cards play → 404 | **HIGH** | LIVE, open ~1 month |
+| 5 | Mobile Lighthouse HARD budget (LCP ≤2.5s, ≤500KB) is not the config actually gating CI — the live `lighthouse.yml` gate is desktop + soft-warn | **MEDIUM-HIGH** | NEW (documentation vs. reality drift) |
+| 6 | `r2-sync.yml` push-trigger paths match gitignored binary globs — CI job structurally cannot sync in the common case | **MEDIUM** | NEW (design gap, real uploads are manual) |
+| 7 | Dual build system: 4 Astro archives vs. 11 dormant legacy HTML via `copy-legacy-archives.sh` | **MEDIUM** | KNOWN — intentional interim state, retirement debt |
+| 8 | 4 active-archive `index.astro` pages (600–870 lines each) duplicate filter/sort/pagination/stats markup with no shared layout | **MEDIUM** | NEW (same shape as old Python-builder duplication) |
+| 9 | Playwright test suite (1,145 lines, 7 specs) exists but only runs via manual `workflow_dispatch` — not a merge-time safety net | **MEDIUM** | PARTIALLY RESOLVED (built, not wired) |
+| 10 | CSP header deferred to Phase 6 — no Content-Security-Policy in production today | **LOW-MEDIUM** | KNOWN — tracked (D-07) |
+| 11 | Stale duplicate `_headers` (repo root) vs. `public/_headers` (the one actually shipped) | **LOW** | NEW (dead config) |
+| 12 | CF Pages 25 MiB per-file deploy limit | **LOW** | RESOLVED — self-healing guard added |
+| 13 | Service worker registered on all pages / shell precache gap | **LOW** | RESOLVED by migration |
+| 14 | Zero test coverage | **N/A** | RESOLVED — see #9 for the residual wiring gap |
+| 15 | Inline-JSON multi-MB manifest anti-pattern (old GEIPAN 3.3 MB page) | **LOW** (for active surface) | RESOLVED for the 4 active archives; unchanged for dormant |
 
-**Critical gap:** `sw.js` is registered ONLY on the 12 top-level utility pages:
-- ✓ Registered: `index.html`, `search.html`, `timeline.html`, `map.html`, `about.html`, `donate.html`, `glossary.html`, `stats.html`, `foia.html`, `compare.html`, `whatsnew.html`, `404.html`, and a handful of story pages (`nara/*.html`, `brazil/*.html`, `nz/story.html`)
-- ✗ **NOT registered: every per-archive `index.html`** — `aaro/`, `nasa/`, `nara/`, `geipan/`, `uk/`, `brazil/`, `chile/`, `italy/`, `nz/`, `argentina/`, `canada/`, `peru/`, `spain/`, `uruguay/`
+---
 
-**Impact:** A user visiting `/aaro/` first will never install the service worker. Subsequent offline access to *any* page (including pages that would register the SW) fails until they happen to land on a root-level utility page. The "offline by default" promise of CLAUDE.md §1.3 is structurally broken for first-time visitors to archive subpages.
+## Resolved Since Last Audit (2026-05-25)
 
-**Verify:**
+These 2026-05-25 findings targeted the plain-HTML + Python build pipeline
+that Phase 4 retired. Verified fixed on the current active surface
+(wargov, aaro, nasa, nara):
+
+- **Per-page inline-JSON bloat** — `index.html` (479 KB), `geipan/index.html`
+  (3.3 MB) inline manifests. Active archives now ship sharded JSON
+  (`data/wargov-shard-{2..6}.json`, `data/aaro-shard-1.json`,
+  `data/nara-shard-1.json`) fetched progressively; `dist/index.html` is
+  222 KB, `dist/aaro/index.html` 258 KB, `dist/nara/index.html` 216 KB,
+  `dist/nasa/index.html` 98 KB. Still above the 500 KB *target* only for
+  none of them — all four are under budget. GEIPAN/UK/etc. (dormant)
+  remain unchanged at their old sizes since they ship as static legacy
+  HTML (acceptable — dormant, not in the active-surface budget).
+- **SW registered on only 12/~32 pages** — `src/layouts/BaseHead.astro`
+  registers `/sw.js` structurally on every Astro-built page (100%
+  coverage for the 4 active archives + all site/story pages). Dormant
+  legacy HTML: 57 of 68 tracked pages already carry the registration
+  (via the retired `patch-sw-registration.py`); residual gap is
+  low-priority (dormant surface).
+- **Shell precache excludes archive roots** — superseded by
+  `@vite-pwa/astro` `injectManifest` (`src/sw.ts`); Workbox
+  `precacheAndRoute(self.__WB_MANIFEST)` is driven by
+  `injectManifest.globPatterns` in `astro.config.mjs`, not a hand-maintained
+  SHELL array.
+- **`sync.sh:144` `download.py` path mismatch** — `scripts/sync.sh` no
+  longer shells out to per-archive Python downloaders for the rebuild
+  step; it now delegates to `pnpm build` (`scripts/sync.sh:213-215`).
+- **Manual nav/footer sync across 15+ archives** — `Nav.astro` and
+  `Footer.astro` are now the single source of truth for the 4 active
+  archives; `scripts/sync-nav.py` / `sync-footer.py` and their CI drift
+  gates are deleted (Plan 04-20).
+- **Hardcoded release-repo mismatch** (`build-details.py:42`) —
+  `build-details.py` itself is deleted; per-archive R2 URLs are now
+  generated by `normalize-*.py` from a single `assets.realufo.org` base.
+- **Zero unit/E2E tests** — `tests/` now has 7 Playwright specs
+  (1,145 lines): `visual-regression`, `verify-fidelity.py`
+  (fidelity samples), `tone-colours`, `js-off` (hard-fail architecture
+  guarantee), Lighthouse budget, `pagination`, `lightbox`, `search`,
+  `sw`, `r2-urls`. See concern #9 below for the residual "not wired to
+  CI trigger" gap — the tests exist, but are not yet a merge gate.
+- **Images lacking `loading="lazy"` on hero carousel** — superseded;
+  `src/components/HeroCarousel.astro` is a fresh Astro component, not
+  audited here in detail but not flagged by the Lighthouse/visual gates
+  when they do run.
+- **`api/all.json` / `api/by-archive.json` both 4.6 MB (Lunr)** —
+  Lunr search deleted entirely; replaced by Pagefind (`dist/pagefind/`,
+  1.0 MB total for the 4-archive index) — commit `374265a`.
+
+---
+
+## Known Live Issues (explicitly tracked, verify-each)
+
+### 1. Release-03: 2 large videos pending R2 upload — 2 AUD cards 404 [HIGH, LIVE]
+
+**Files:** `data/wargov-shard-6.json:112,116`, `scripts/dvids2dod-r03.json:8-9`
+
+Two DVIDS→DOD mappings resolved and wired into cards, but the source
+binaries were never uploaded to R2:
+
+- `DOD_111764796.mp4` (2.99 GiB, DVIDS `1010319`) — card `r278` (NASA-UAP-D024)
+- `DOD_111764902.mp4` (1.19 GiB, DVIDS `1010336`) — card `r279` (NASA-UAP-D025)
+
+Both card templates in `data/wargov-shard-6.json` point their `Open`
+and `Download` buttons at
+`https://assets.realufo.org/videos/wargov/DOD_111764796.mp4` and
+`…DOD_111764902.mp4` — URLs that 404 until uploaded. Root cause:
+wrangler's `r2 object put` caps single-PUT uploads at 300 MiB; these
+two files exceed the cap by 10× and 4×. Per
+`.planning/quick/260615-3e3-fetch-third-war-gov-ufo-release-and-upda/260615-3e3-SUMMARY.md`,
+an S3-multipart path (aws-cli or rclone against R2's S3-compat
+endpoint, using R2 S3 API keys) is required. Source files staged at
+operator machine `/Users/laichan/UFO/AARO061226/` per STATE.md TODOs
+— **not** in this repo, not in git.
+
+**Verified still open:** no commit since `e731163` (2026-06-15)
+mentions these DVIDS IDs, "multipart", or touches
+`data/wargov-shard-6.json`. `git log --all --grep` for both IDs
+returns only the original resolve/upload commits. The branch this
+work landed on (`quick/260615-3e3-wargov-release-03`) is 5 commits
+ahead of `main` and **still unmerged** — this fix, and everything else
+in Release 03 (72 rows, R2 mirror, Pagefind reindex), has not reached
+`main` at all as of 2026-07-11, nearly a month after the quick-task
+summary was written.
+
+**Fix:** (a) operator runs the S3-multipart upload for the 2 files,
+(b) merge `quick/260615-3e3-wargov-release-03` → `main` to ship
+Release 03 (72 new records) to production at all.
+
+### 2. CF Pages 25 MiB per-file deploy limit [LOW, RESOLVED with caveat]
+
+**Files:** `scripts/copy-legacy-archives.sh:36-40` (`MAX_BYTES`,
+`copy_one()`)
+
+Commit `15e0233` (2026-05-29) fixed the immediate incident (two
+geipan mp4s, 40 MiB + 4.4 MiB, broke `deploy-cf-pages.yml`) by
+deleting the files. Since then, `copy_one()` in
+`copy-legacy-archives.sh` was hardened to **skip** (not fail) any
+tracked file over 25 MiB with a stderr warning, rather than letting
+the whole CF Pages upload abort. Largest currently-tracked file is
+`legacy/chile/pdfs/DGAC-CEFAA-Publicacion-Web-2019.pdf` at 4.7 MB —
+comfortably under the cap.
+
+**Residual risk:** the skip is silent-ish (stderr only, no CI
+assertion that `skipped_count == 0`). A future scrape that
+re-introduces an oversized dormant-archive binary would silently drop
+it from `dist/` rather than failing the build — a content gap that's
+easy to miss. **Fix approach:** assert `skipped_count == 0` at the
+end of `copy-legacy-archives.sh` for a hard CI signal, or explicitly
+allowlist expected skips.
+
+### 3. Dual build system: 4 Astro archives vs. 11 dormant legacy HTML [MEDIUM, KNOWN/INTENTIONAL]
+
+**Files:** `scripts/copy-legacy-archives.sh`, `legacy/` (28 dirs),
+`.planning/decisions/python-build-retired.md`
+
+By design per CLAUDE.md §2/§13: wargov/aaro/nasa/nara are owned by
+Astro (`src/pages/**`); the 11 dormant archives (geipan, uk, brazil,
+chile, argentina, canada, italy, nz, peru, spain, uruguay — plus
+partial-port sub-pages for aaro/nara/nasa/nz/uruguay) ship as
+git-tracked static HTML copied wholesale into `dist/` by
+`copy-legacy-archives.sh` at postbuild. This is an accepted
+interim state (ADR `python-build-retired.md` "Neutral" section),
+not a bug — but it means:
+
+- Two completely different rendering/JS-invariant implementations
+  coexist (Astro components + `invariants.ts` for active; hand-rolled
+  inline JS baked into 2026-05-era HTML for dormant).
+- Any future CLAUDE.md §7 JS-invariant change must be applied twice —
+  once in `invariants.ts`, once by hand-patching legacy HTML (no
+  automated sync exists for the dormant surface; `sync-nav.py` /
+  `sync-footer.py`, the old drift-gate tooling, are deleted).
+- The 11 dormant `build-<slug>.py` scripts are dead code from the
+  active-surface point of view but kept alive only because `scrape.yml`
+  still calls them (see concern below) — a genuinely circular
+  dependency: `scrape.yml` is broken *and* is the only reason these
+  scripts survive deletion.
+
+**Fix approach:** either (a) hard-delete the 11 dormant archives + their
+Python build/scrape/normalize scripts in a future milestone (tracked
+in CLAUDE.md §2 as a documented future decision), or (b) rewrite
+`scrape.yml` end-to-end in Phase 5 and re-evaluate which dormant
+builders survive.
+
+### 4. Surviving Python under `scripts/` still referenced by `scrape.yml` [HIGH, KNOWN — but now provably worse than the ADR describes]
+
+**Files:** `.github/workflows/scrape.yml:41-51`,
+`.planning/decisions/python-build-retired.md`
+
+The ADR accepts as a documented risk that `scrape.yml` "is presently
+broken in main: it references already-deleted `build-{aaro,nasa,nara}.py`."
+Verified against the current tree — the breakage is **worse** than a
+soft warning:
+
+```yaml
+- name: Rebuild all archive HTML
+  run: |
+    python3 scripts/build-nasa.py && \
+    python3 scripts/build-nara.py && \
+    python3 scripts/build-aaro.py && \
+    python3 scripts/build-geipan.py && \
+    ...
+    python3 scripts/build-details.py && \
+    python3 scripts/build-wargov.py
+```
+
+This step has **no** `|| true` (unlike every other step in the same
+workflow) and chains with `&&`. `scripts/build-nasa.py` (first in the
+chain) does not exist —confirmed via `ls`: `build-wargov.py`,
+`build-details.py`, `build-nara.py`, `build-nasa.py`, `build-aaro.py`
+are all absent (deleted by Plan 04-20, commit `f3b40df`). The job
+fails outright at this step on every Monday 06:00 UTC cron tick and on
+every manual `workflow_dispatch`. Corroborating evidence: `git log
+--all --grep="chore: weekly auto-rebuild"` returns **zero commits** —
+the auto-commit step (which comes after the broken rebuild step) has
+never once run since this workflow was authored.
+
+**Impact:** the entire weekly scrape → rebuild → recommit pipeline for
+the 11 dormant archives + `api/`, `feeds/`, `sitemap.xml`, `sw.js`
+version stamp, and `CHANGELOG.md` auto-append has been silently dead
+since 2026-05-28. Nobody depends on it today (Phase 5 scrape
+automation supersedes it once built), but any content staleness on
+dormant archives will go undetected indefinitely, and GitHub Actions
+almost certainly emails scheduled-workflow-failure notifications to
+watchers every week that get ignored.
+
+**Fix:** Phase 5 (see `.planning/phases/05-scrape-automation/`) is
+the planned replacement; Plans 05-03..05-07 are unstarted (only 05-01
+and 05-02 have SUMMARY.md, both partial/blocked-on-operator). Until
+Phase 5 lands, either fix the 5 missing script references (regenerate
+minimal versions or point at the dormant-archive equivalents) or
+disable the cron trigger to stop the weekly noise.
+
+### 5. Akamai egress / scrape automation — stalled at Phase 5 Wave 1 [MEDIUM, OPEN]
+
+**Files:** `workers/akamai-spike/`,
+`.planning/phases/05-scrape-automation/05-02-SUMMARY.md`
+
+Phase 5's Plan 05-02 (Akamai-blocked-source spike Worker) is
+**1 of 3 tasks complete**: the `realufo-akamai-spike` Worker scaffold
+exists (`workers/akamai-spike/src/index.ts`, 108 lines) but has never
+been deployed or invoked — Task 2 (operator deploys + invokes) and
+Task 3 (`.planning/decisions/akamai-spike.md` ADR, which does not yet
+exist) are blocked on operator action against the live Cloudflare
+account. Per `05-CONTEXT.md`, Plans 05-03 (Workers cron skeleton) and
+05-04 (per-archive scrape lanes) cannot proceed until this ADR locks
+the `AKAMAI_BLOCKED_SOURCES` constant. **Net effect:** Phase 5 has
+been stalled at Wave 1 since 2026-05-28 with no forward progress
+recorded in git history since (all subsequent commits are quick-tasks
+or Phase 4.1 work, not Phase 5 plans).
+
+**Fix:** operator must run the 5-command sequence documented in
+`05-02-SUMMARY.md` Task 2 (`wrangler login` → `kv namespace create` →
+`wrangler deploy` → `curl` invoke → capture JSON) before Phase 5 can
+resume.
+
+### 6. URL-contract / redirects drift — gate exists but doesn't run [MEDIUM]
+
+**Files:** `URL-CONTRACT.txt`, `_redirects`, `scripts/build-redirects.py`,
+`.github/workflows/quality-gates.yml` (`redirects` job)
+
+`build-redirects.py --check` (drift gate) and `verify-redirects.sh`
+(curl harness) are both implemented and would catch URL-contract drift
+— but they only run inside `quality-gates.yml`, whose auto-trigger is
+disabled (see concern below). `URL-CONTRACT.txt` was last regenerated
+2026-06-02 (67 canonical routes) and nothing in the last ~40 commits
+suggests routes have drifted since, but there is currently no
+automatic gate that would catch it if they did.
+
+---
+
+## Tech Debt
+
+### `scripts/update_all.sh` is hard-broken — calls 5 deleted Python builders [HIGH, NEW]
+
+**Files:** `scripts/update_all.sh:67-73`
+
 ```bash
-grep -c "serviceWorker" aaro/index.html nasa/index.html nara/index.html
-# → all zero
+maybe "python3 '$ROOT/scripts/build-wargov.py'"
+maybe "python3 '$ROOT/scripts/build-aaro.py'"
+maybe "python3 '$ROOT/scripts/build-details.py'"
+maybe "python3 '$ROOT/scripts/build-nasa.py'"
+maybe "python3 '$ROOT/scripts/build-nara.py'"
 ```
 
-**Files:** Every `<slug>/index.html`. The fix lives in `scripts/templates/head.py` — emit the SW registration snippet from `make_head()` so it lands in every page the templates produce.
+All 5 scripts were deleted by Plan 04-20 (commit `f3b40df`,
+2026-05-28); `update_all.sh` itself was last touched 2026-05-22 and
+never updated to match. Unlike `scrape.yml` (whose breakage is an
+explicit, documented, accepted ADR risk), this breakage is
+**undocumented** anywhere except this audit. `README.md:330-331`
+still tells operators `scripts/update_all.sh` "wraps the typical
+subset" of the sync pipeline — a contributor following the README
+today hits 5 back-to-back `python3: can't open file` errors. It also
+still calls `gh release upload videos-v1 …` / `gh release upload
+pdfs-v1 …` (lines 51, 62) targeting GitHub Releases tags that the
+current R2-based pipeline (`assets.realufo.org`) no longer treats as
+the primary asset source for active archives.
 
-**Fix approach:** Add a single line to `templates/head.py:make_head()` returning the same `<script>if("serviceWorker" in navigator)…</script>` block already used on root pages. Re-run every `build-*.py`. Add a sync-script (`scripts/sync-sw-registration.py`) similar to `sync-footer.py` and a drift gate workflow.
+**Fix:** either delete `scripts/update_all.sh` and its README
+reference (its only non-broken responsibility — release upload — is
+now superseded by manual `wrangler`/`rclone` R2 uploads per the
+Release-03 workflow), or rewrite it to delegate to `pnpm build` like
+`sync.sh` now does.
 
-### Shell Precache Excludes Every Archive Index
+### `quality-gates.yml` auto-trigger disabled since 2026-05-29 — 6-job hard-fail gate matrix is dormant [HIGH, NEW]
 
-`sw.js` SHELL list (lines 23–40) caches `/`, `/search.html`, `/timeline.html`, `/map.html`, the seven utility pages, leaflet vendor, and the favicon — **but not** `/aaro/`, `/nasa/`, `/nara/`, `/geipan/`, etc. Offline navigation to an archive root that the user hasn't visited online first will fall through to `/404.html` (see `sw.js:87`).
+**Files:** `.github/workflows/quality-gates.yml:14-25`
 
-**File:** `sw.js:23-40` (SHELL constant).
+```yaml
+on:
+  # 2026-05-29 — deployment_status trigger disabled. ...
+  # deployment_status:
+  workflow_dispatch:
+```
 
-**Fix:** Add every archive root to SHELL. Cost: ~600 bytes precache delta. Trivial.
+This workflow implements 6 well-designed parallel gates against every
+CF Pages preview deploy: `visual-regression` (Playwright vs. 60 PNG
+baselines), `fidelity` (byte-diff vs. locked samples), `tone-colours`
+(CLAUDE.md §3.1 fixture), `js-off` (**explicitly documented as
+"HARD-FAIL UNCONDITIONALLY... softening this gate would defeat the
+entire pre-rendered-cards architecture"**), `lighthouse` (mobile,
+LCP ≤2.5s / ≤500KB, HARD per Plan 04-20's PERF-04 sign-off), and
+`redirects` (drift + curl harness). The `deployment_status:` trigger
+that would fire this matrix after every CF Pages deploy has been
+commented out since commit `b4bb39d` because `verify-redirects.sh`'s
+sample list still referenced Phase-2-era legacy URLs
+(`belgian-wave.html`, `cash-landrum.html`, etc.) that Phase 4.1
+retired, causing every single auto-run to fail immediately.
 
-### Recent SW Bug Pattern Indicates Cache Strategy Is Still Settling
+**Impact:** since 2026-05-29, none of these 6 gates has run
+automatically on any of the ~44 subsequent commits to `main`
+(Phase 4.1 legacy-reorg, stories/site-pages routes, nav dropdowns,
+redirects rewrite, map/glossary/timeline fixes, Release-03 work).
+They are reachable only via manual `workflow_dispatch` with an
+explicit `preview_url` input — nobody appears to have run it since
+(no `.lighthouseci/` artifact commits or workflow-run references
+found post-2026-05-29). The `js-off` architectural guarantee in
+particular — the single test that would catch a regression back into
+client-side hydration, which PROJECT.md treats as a core constraint —
+currently has no CI enforcement at all.
 
-Three of the last 30 commits touched offline behaviour:
-- `dcbc0d7` — fix(sw): don't cache 404/non-2xx navigation responses (had been serving stale 404s after deploys)
-- `f3de6b9` — fix: service worker — bump version, expand SHELL, auto-stamp on deploy
-- `25cd124` — perf+a11y: timeline /api/all.json fast-path, CLS reservations
+**Fix:** refresh `scripts/verify-redirects.sh`'s sample URL list (or
+have it derive samples from the current `URL-CONTRACT.txt` instead of
+a hardcoded list) and re-enable the `deployment_status:` trigger. This
+is a small, well-scoped fix relative to its risk — the gate matrix
+itself is intact and just needs its trigger and one input list
+refreshed.
 
-The `extract-pdf-text.py` workflow generates `**/.pdftext/*.txt` (`extract-pdf-text.py:50`) and the `api/all.json` is **4.6 MB**. Stale-while-revalidate on a 4.6 MB JSON over a hostile network is functional but heavy; users will refetch the whole blob whenever the timestamp shifts.
+### Two Lighthouse configs, only the weaker one is actually live [MEDIUM-HIGH, NEW]
 
-**Fix approach:** Split `api/all.json` into per-archive shards (which `by-archive.json` already conceptually has — but it's also 4.6 MB, suggesting it's the same data re-keyed). Cache them independently. Versions can be ETag-based per shard.
+**Files:** `.lighthouserc.json` (used by `.github/workflows/lighthouse.yml`,
+live on every push+PR), `.lighthouserc.cf.json` (used by the disabled
+`quality-gates.yml` `lighthouse` job)
+
+Plan 04-20's ADR (`python-build-retired.md`) and STATE.md both record
+"Lighthouse HARD-flip — warn → error (PERF-04)" as a **closed** Phase
+4 milestone. That HARD, mobile-throttled, 2.5s-LCP/500KB-budget config
+lives in `.lighthouserc.cf.json` — but that file is only consumed by
+`quality-gates.yml`, which per the concern above does not run
+automatically. The workflow that *does* run on every push and PR
+(`lighthouse.yml`) uses `.lighthouserc.json`, which is:
+- **desktop** preset, not mobile (`"preset": "desktop"` —
+  contradicts CLAUDE.md §8 mobile-first / the 360px baseline used
+  everywhere else in the project's own test fixtures)
+- **`"warn"`**-level assertions on category scores only
+  (performance/accessibility/best-practices/seo), not the LCP/byte
+  budget assertions at all
+- uploads to `temporary-public-storage` (ephemeral, no artifact
+  retention)
+
+`.lighthouserc.cf.json` also carries a self-contradictory ownership
+comment: `"owner": "ssg-migration branch; do NOT merge into main —
+legacy .lighthouserc.json owns the main branch gate (D-32)"` — yet
+the file is committed on `main` today and is the one actually
+implementing the "HARD" PERF-04 requirement. Net effect: the
+performance guarantee the project's own documentation considers
+signed-off and enforced is not the one actually gating merges.
+
+**Fix:** decide which config is canonical, delete or clearly
+re-scope the other, and correct the stale ownership comment. If the
+mobile/hard budget is the intended gate, it needs a live trigger
+(ties into the `quality-gates.yml` re-enable fix above).
+
+### `r2-sync.yml` push-trigger paths target gitignored binaries [MEDIUM, NEW]
+
+**Files:** `.github/workflows/r2-sync.yml:29-40`, `.gitignore`
+
+The workflow's `push:` trigger watches paths like `bundles/**/*.pdf`,
+`**/videos/**/*.mp4`, `<slug>/bundles/**/*.pdf` to fire an
+rclone-to-R2 sync. But every one of those path globs points at
+directories `.gitignore` explicitly excludes (`bundles/Release_1/*.pdf`,
+`aaro/videos/`, `nasa/pdfs/`, `nara/pdfs/`, etc. — see `.gitignore`
+lines 20-38). A normal `git push` can never contain a diff matching
+these paths, because the files are never committed by design (binary
+CDN policy, CLAUDE.md §5.2). The `workflow_dispatch` /
+`repository_dispatch` paths still work (they don't depend on a push
+diff), but they too assume the binaries already exist in the runner's
+**checkout** (`if [ -d "bundles/Release_1" ]` — a gitignored,
+uncommitted directory that a fresh `actions/checkout@v4` will never
+populate). In practice, every real upload to date (Release 01, 02, 03)
+has been performed by a human running `wrangler`/`rclone` locally,
+never via this CI workflow — confirmed by the Release-03 quick-task
+SUMMARY describing a fully manual R2 upload with 2 files failing on
+wrangler's 300 MiB cap.
+
+**Fix:** either (a) add a fetch/download step to `r2-sync.yml` before
+the rclone sync (re-running the relevant `dl-<slug>.sh` against the
+runner), or (b) document explicitly that this workflow is designed
+only for the `repository_dispatch` path fed by a future Worker that
+stages binaries somewhere the runner *can* reach (e.g., a private R2
+staging bucket, per the `05-05 per-archive promote` plan referenced in
+the workflow's own comments) — and accept that the push-trigger
+branch is presently dead code.
+
+### 4 active-archive index pages duplicate filter/sort/pagination markup [MEDIUM, NEW — same shape as old Python-builder debt]
+
+**Files:** `src/pages/index.astro` (867 lines), `src/pages/aaro/index.astro`
+(618 lines), `src/pages/nara/index.astro` (608 lines),
+`src/pages/nasa/index.astro` (606 lines)
+
+The 2026-05-25 audit's top concern was that per-archive Python
+builders (`build-aaro.py` at 1,360 lines) each hand-rolled their own
+manifest/HTML/JS, making a 16th archive expensive to add. The
+migration replaced the *JS* half of this problem cleanly — all 4
+active pages share `src/scripts/invariants.ts` (572 lines, injected
+once via `RootLayout.astro`) for lightbox/nav/hamburger behaviour. But
+the *markup* half of the duplication persists: each of the 4 pages
+independently implements its `arch-controls-bar` / `filter-bar` /
+`stats-grid` structure (6 matches each via
+`grep -c "arch-controls-bar\|filter-bar\|stats-grid"`) with no shared
+`ArchiveLayout.astro` or `ArchivePage` component. There is no
+`src/layouts/` entry besides `BaseHead.astro` and `RootLayout.astro`.
+
+**Impact:** smaller than the old problem (4 archives, not 15+), but
+the same shape — reactivating a 5th archive (e.g. NZ or Uruguay,
+which already have partial Astro page templates per CLAUDE.md §2)
+means copying ~600 lines of markup/filter-wiring rather than
+extending a shared component.
+
+**Fix:** extract a shared `ArchiveIndexLayout.astro` (or a
+`<ArchiveControls>` + `<ArchiveGrid>` component pair) that the 4
+pages compose, parameterised by content-collection name + tone
+colour. Lower priority than the CI-gate issues above since the
+active surface is stable at 4 archives with no near-term 5th planned.
+
+### Stale duplicate `_headers` files [LOW, NEW]
+
+**Files:** `_headers` (repo root), `public/_headers`
+
+Two files exist with near-identical rules (`/sw.js` no-cache,
+`Strict-Transport-Security`, `X-Content-Type-Options`, immutable
+caching for `/assets/*` and `/_astro/*`). Only `public/_headers` is
+actually shipped (Astro auto-copies `public/` → `dist/`); the
+repo-root copy's own comment says it exists for "the legacy Python
+build path" — which no longer exists post Plan 04-20. The root copy
+is dead weight that must be hand-kept in sync (currently identical
+except for one comment line) or it will silently drift.
+
+**Fix:** delete the repo-root `_headers`; keep `public/_headers` as
+the single source (Astro's own copy mechanism already handles
+`dist/`).
+
+### `.lycheeignore`, `.htmlvalidate.json` reference a retired workflow [LOW]
+
+**Files:** `.htmlvalidate.json`
+
+`html-validate.yml` was deleted by Plan 04-20 (per
+`python-build-retired.md`, "redundant with quality-gates.yml"), but
+`.htmlvalidate.json` (643 bytes) remains committed at repo root with
+no consumer. Harmless but confusing to a contributor searching for
+"how is HTML validated."
+
+### README.md still references the pre-rename repo path [LOW]
+
+**Files:** `README.md:88-89,396,411,434`
+
+`README.md` clone/cron examples still use
+`war-gov-ufo-release`/`git clone https://github.com/<you>/war-gov-ufo-release`
+even though CLAUDE.md §5.1 documents the canonical remote as
+`hectorchanht/gov-ufo-archive` (local folder name is historical).
+Cosmetic, but a new contributor following the README literally will
+clone into a directory name that no longer matches the on-disk
+convention CLAUDE.md assumes.
 
 ---
 
-## Scraping Pipeline Fragility
+## Known Bugs
 
-### Hardcoded UA String Repeated Across Every Downloader
+### Release-03 AUD cards 404 on Play/Download
 
-The same realistic Chrome UA literal is repeated 8 times across `scripts/dl-*.sh` and `scripts/scrape-*.py`:
+See "Known Live Issues #1" above — `DOD_111764796.mp4` /
+`DOD_111764902.mp4` referenced by `data/wargov-shard-6.json` but not
+present at `assets.realufo.org`.
 
-```
-Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
-(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
-```
+### `scrape.yml` fails at "Rebuild all archive HTML" every scheduled run
 
-**Files:** `scripts/dl-chile.sh:6`, `dl-aaro.sh:21`, `dl-uk.sh:14`, `dl-nara.sh:15`, `dl-geipan.sh:12`, `dl-nasa.sh:15`, `scripts/scrape-geipan.py:20`, `scrape-brazil.py:18`, `scrape-chile.py:18`.
-
-**Impact:** Chrome 131 will start to look anomalous to bot-detectors as Chrome ships 140+. Bumping requires touching 8 files. Akamai-fronted hosts (war.gov, some DoD) need `curl_cffi` (`.github/workflows/scrape.yml:27`) — and this is installed with `|| true`, so a failed install silently falls back to plain curl, which will quietly 403 on Akamai sites and the rebuild won't notice until pages go stale.
-
-**Fix:** Centralise UA + curl flags in `scripts/_http.sh` (sourced from every dl-*.sh) and `scripts/_http.py` (imported from every scrape-*.py).
-
-### Wayback Fallback Is Single-Snapshot, Hardcoded Year
-
-`scrape-chile.py:88`, `scrape-brazil.py:78`, `scrape-uk.py:121` all hardcode:
-```python
-'https://web.archive.org/web/2024id_/' + url
-```
-
-`scrape-aaro.py:55` hardcodes `2025id_/`. The Wayback CDX-driven fallback in `dl-aaro.sh:45` is the only one that queries for the best snapshot dynamically.
-
-**Impact:** As source sites change URLs, the 2024 / 2025 snapshots will increasingly fail to exist for newly-discovered URLs. No alarming yet — these are tolerant fallbacks (`|| true` in the workflow at `.github/workflows/scrape.yml:31-38`).
-
-**Fix:** Promote the CDX-API pattern from `dl-aaro.sh:45` into a shared helper used by every scraper.
-
-### Every Scraper Step in CI is `|| true`
-
-`.github/workflows/scrape.yml` runs every scraper and every build step with `|| true` (lines 31-48, 67-98). The pipeline cannot ever fail. Combined with `git push origin main || true` at the end, a fully broken weekly run still completes "successfully" — drift is invisible until a user notices a stale page.
-
-**Mitigation:** `scripts/check-sources.py` runs at line 98 and produces `dead-links.json`/`dead-links.md`, but those land alongside the broken data, not as a CI red.
-
-**Fix:** Aggregate scraper successes/failures into a single summary that fails the workflow if >N sources broke, but allows transient single-host failures. Slack/issue-create on hard failure.
-
-### `download.py` Path Mismatch in `sync.sh`
-
-`scripts/sync.sh:144` calls `python3 "$ROOT/download.py"` but the file is at `$ROOT/scripts/download-war.gov.py`. There is **no** `download.py` at repo root.
-
-**Impact:** Running `./scripts/sync.sh --wargov-only` (or any path that reaches the war.gov stage) fails with `python3: can't open file '.../download.py'`. The wargov download step is broken at the entrypoint.
-
-**File:** `scripts/sync.sh:144`.
-
-**Fix:** Change to `python3 "$ROOT/scripts/download-war.gov.py"`.
+See "Known Live Issues #4" above.
 
 ---
 
-## Release-Upload Pipeline Gaps
+## Security Considerations
 
-### Release Upload Is Manual / Local-Only
+### No Content-Security-Policy header [LOW-MEDIUM, KNOWN/TRACKED]
 
-The pipeline you described — "scrape the latest release and download to local optionally and upload to GitHub release for online viewing" — is **partly** implemented:
+**Files:** `_headers`, `public/_headers`
 
-- ✓ Scrape exists: `scripts/scrape-*.py`, weekly via `scrape.yml` workflow
-- ✓ Download exists: `scripts/dl-*.sh`, `scripts/sync.sh --all`
-- ✓ Local rebuild exists: `scripts/update_all.sh` chains all of it
-- ⚠ **Release upload runs only from `update_all.sh` (local, requires `gh` CLI)** — `scripts/update_all.sh:45-63`
-- ✗ **No CI step uploads new binaries to GitHub Releases** — `.github/workflows/scrape.yml` runs the scrapers and rebuilds HTML, but never calls `gh release upload`
+Both `_headers` files explicitly defer CSP to "Phase 6 cutover (D-07)."
+`Strict-Transport-Security` and `X-Content-Type-Options: nosniff` are
+present; `Content-Security-Policy` is not. This is a documented,
+tracked deferral rather than an oversight — flagged here so it isn't
+lost, since Phase 6 has not yet started (Phase 5 is the current,
+stalled, in-progress phase).
 
-**Files:** `scripts/update_all.sh:44-63` (local-only path); `.github/workflows/scrape.yml` (CI path, no upload step).
+### `esc()` / URL-scheme trust boundary carried over from the old templates
 
-**Impact:** Any new mp4 / PDF that lands during the weekly scrape stays only inside the GitHub Actions runner sandbox. The runner doesn't commit binary blobs (they're `.gitignore`d by design — `.gitignore:6-32`). So new sources discovered by the spider produce HTML cards whose `Download` button points at release URLs that **do not exist**.
+The 2026-05-25 audit flagged that the legacy `scripts/templates/archive.py`
+`esc()` helper escaped HTML entities but not `javascript:` URL schemes
+before `window.open(a.u, '_blank')`-style calls. The equivalent pattern
+now lives in `src/scripts/invariants.ts`'s card-open handler
+(reading `data-url`/`data-src` attributes rendered from Astro
+content-collection frontmatter). Content sources are trusted CSV/JSON
+scraped from official `.gov`/`.mil` sources and normalized by
+`normalize-*.py`, so exploitability is low, but no explicit
+`https:`/`http:`/`mailto:`-only allowlist exists in `invariants.ts` for
+these attribute reads. Low priority given the closed, curated content
+pipeline, but worth a defensive fix if the project ever ingests
+less-trusted sources (e.g. a future user-submission feature).
 
-**Mitigation:** `scripts/backfill-release.py` exists (54 lines), apparently to detect drift and emit a `gh release upload` command — but it's a *suggestion-printer*, not an automation.
+### No leaked secrets in source [VERIFIED CLEAN]
 
-**Fix approach (high priority for the strategic question):**
-1. Add a CI step to `scrape.yml` after `Run wide spider…` that runs `gh release upload <tag> <new-files> --clobber` using `secrets.GITHUB_TOKEN`. The token is already available; `permissions: contents: write` is already set.
-2. The downloader scripts must save new binaries to a known path (`bundles/incoming/` or similar) that the CI step then uploads and prunes.
-3. After upload, the script deletes the local file (it's gitignored anyway) so the runner doesn't accumulate state.
-
-### Hardcoded Release Repo Mismatch (Latent Bug)
-
-`scripts/build-details.py:42` points at:
-```
-https://github.com/hectorchanht/gov-ufo-archive/releases/download/pdfs-v1/
-```
-Every other script uses `hectorchanht/war-gov-ufo-release`. The `gov-ufo-archive` repo name appears to be a typo/legacy reference and will produce 404 download links from AARO detail pages.
-
-**File:** `scripts/build-details.py:42`.
-
-**Fix:** Change to `hectorchanht/war-gov-ufo-release`.
-
-### Hardcoded Asset Lists Don't Auto-Discover
-
-`scripts/build-wargov.py:70-78` hardcodes the 28 Release 01 DVIDS IDs. Release 02 IDs are loaded from JSON (`dvids2dod-r02.json`). If War.gov publishes Release 03 with a new bundle, a human must:
-1. Run `scripts/resolve-dvids-r01.py`-style resolver against the new DVIDS Video IDs
-2. Hand-edit `dvids2dod-r03.json` or `EXPECTED_VIDEOS_R03` constant
-3. Modify the CSV path constants in `build-wargov.py:27-29` to include the new CSV
-
-**Files:** `scripts/build-wargov.py:70-98`.
-
-**Fix:** Generalise to scan `scripts/dvids2dod-*.json` for all release maps and merge automatically.
-
----
-
-## CLAUDE.md Spec vs Reality Drift
-
-### Recent Feature Commits Are Consistent with Spec
-
-Audited the last 8 commits against CLAUDE.md rules:
-- `915157a` (CSV row metadata for loose videos) — adheres to §4.2 ("substantive context. NEVER filler")
-- `a45225e` (rich meta panel) — extends §4.2 card schema; consistent with §4.3 actions
-- `dcbc0d7` (SW cache fix) — directly addresses §1.3 offline-by-default goal
-- `99b2fda`, `2f67feb` (DVIDS map fixes) — fixes broken Download buttons, consistent with §4.3 "Never show a button that returns HTML (404 page)"
-- `34d0461` (Release 02 ingest) — added without rewriting CLAUDE.md to mention Release 02; **CLAUDE.md §5.1 still lists `wargov` tag set as the original R01-only `pdfs-v1`+`videos-v1`** — `wargov-r02-v1` tag now in use but not documented
-
-**Drift:**
-- CLAUDE.md §5.1 release-tag table is out of date (missing `wargov-r02-v1`)
-- CLAUDE.md §2 source table doesn't note that several countries (Argentina, Italy, Peru, Spain, Uruguay) are now generated by `build_batch3.py` rather than a per-country build script
-- CLAUDE.md §6.3 describes `sync.sh` as having `--<slug>-only` flags for "war.gov, AARO, NASA, NARA"; the sync.sh now has flags for all 15 archives — spec lags reality
-
-**Fix:** Update CLAUDE.md §5.1 (release tags), §6.3 (flags), §2 (which archive has its own build script vs batch3) on the next housekeeping commit.
-
-### Anti-Patterns Spec Forbids Are Present (Minor)
-
-CLAUDE.md §11 forbids `crossorigin="anonymous"` on `<video>`. Verified: zero occurrences across all index.html files. ✓
-
-CLAUDE.md §4 requires consistent action buttons; `scripts/templates/archive.py:91-101` implements them correctly.
-
-CLAUDE.md §9 forbids filler descriptions. Could not spot-check 4000+ records, but the build scripts do not inject filler — they pass CSV `Description Blurb` through verbatim.
-
----
-
-## CSV Source of Truth
-
-### Two CSVs Exist; One Is Authoritative, One Is "Untouchable Legacy"
-
-- `uap-release001.csv` — **194 KB** — the original R01 dump from War.gov. CLAUDE.md §11 declares it untouchable.
-- `uap-data.csv` — **298 KB** — combined R01 + R02 dump, fetched from `war.gov/Portals/1/Interactive/2026/UFO/uap-data.csv` (`scripts/download-war.gov.py:136`)
-
-**Consumers:**
-- `scripts/build-wargov.py:27-29` — prefers `uap-data.csv`, falls back to `uap-release001.csv` on clean clone
-- `scripts/resolve-dvids-r01.py:29` — reads `uap-data.csv`
-- `scripts/download-war.gov.py:136-139` — downloads both
-
-**Concern:** Both CSVs are committed (193 KB + 298 KB = ~491 KB of CSV in git). The combined CSV is fetched fresh on every sync — there is no diff/merge logic. If War.gov ever rotates the CSV format, the build silently regenerates a malformed manifest because there's no schema validation.
-
-**Files:** `scripts/build-wargov.py`, `uap-release001.csv`, `uap-data.csv`.
-
-**Fix approach:**
-1. Add a header-row check at the top of `build-wargov.py` — fail loudly if CSV columns drift.
-2. Consider whether `uap-release001.csv` still needs to be committed (it's a subset of `uap-data.csv` now). Keeping it is harmless but the rule "untouchable" should be re-evaluated.
-
----
-
-## Security
-
-### No Leaked Secrets in Source
-
-Audited:
-- `grep -rn "API_KEY\|SECRET\|TOKEN\|password" scripts/ .github/workflows/` — only legitimate `${{ secrets.GITHUB_TOKEN }}` and `${{ secrets.LHCI_GITHUB_APP_TOKEN }}` references
-- No `.env` files present in repo root (`.gitignore` does not currently list `.env*` — see fix below)
-- No `*.pem`, `*.key`, credentials files committed
-
-### Missing `.env*` Pattern in `.gitignore`
-
-`.gitignore` does not include `.env`, `.env.*`, `*.pem`, `*.key`. Project does not appear to use env files today, but if a future contributor introduces one, it will be auto-staged.
-
-**File:** `.gitignore`.
-
-**Fix:** Add a "secrets" section to `.gitignore`:
-```
-.env
-.env.*
-*.pem
-*.key
-serviceAccountKey.json
-```
-
-### XSS Risk: Verbatim Government-Source HTML Injection
-
-CLAUDE.md §9 says "verbatim official text for hero lede, headlines, FAQ accordion answers." Several JSON files embed already-HTML-formatted content:
-
-- `scripts/_cases.json:993` — case `lede` field contains `<strong>`, `<em>` tags. Built into `aaro/details.html` via `build-details.py`.
-- Build scripts emit titles, descriptions, and case content from CSV / JSON straight into HTML.
-
-**Verified escaping:**
-- `scripts/templates/archive.py:42` — `esc(s)` properly escapes `& < > " '` on the client side before `innerHTML` (lines 50, 61, 78, 89, 100, 108, 112, 113, 117, 135).
-- `scripts/templates/shared.py:374-409` and `templates/lightbox.py:182-187` use `esc()` consistently on user-routed paths.
-- `scripts/templates/shared.py:280` (`btn.innerHTML = TAB_MAP[key] + countText;`) — `TAB_MAP[key]` is a build-time constant, `countText` is a number, so safe.
-
-**Latent risk:** When `_cases.json` content is rendered into HTML via Python f-strings server-side in `build-details.py`, the **`<strong>` and `<em>` tags are intentionally preserved** — this is by design (they're already trusted markup). But if a future contributor adds non-trusted CSV content into a similar f-string-rendered field, the trust boundary will quietly break. The build scripts have no clear "this field is trusted markup" vs "this field is user/source text and must be escaped" convention in Python.
-
-**Files:** `scripts/build-details.py`, `scripts/_cases.json`, all `build-*.py`.
-
-**Fix approach:** Adopt a naming convention in build scripts — e.g. fields ending in `_html` are pass-through, all other fields go through `html.escape()` before being f-stringed. Document in CLAUDE.md §9.
-
-### `data-action="open"` + `card.dataset.idx` — Client-Side Trust Boundary
-
-`scripts/templates/archive.py:140-152`:
-```js
-const a = (window._lb ? window._lb.getList() : [])[parseInt(card.dataset.idx, 10)];
-if (a && a.t === 'CATALOG') { window.open(a.u || a.s, '_blank'); }
-```
-
-`a.u` and `a.s` are URLs from the build-time manifest (escaped on render). `window.open(escapedHtmlContent, …)` is fine for ordinary URLs but if a malicious source page ever supplied `javascript:` schemes, this would execute. The HTML `esc()` does NOT prevent `javascript:` URL injection (it only escapes `& < > " '`).
-
-**Fix:** Add a URL-scheme allowlist in `esc()` or a separate `escUrl()` that rejects anything not in `https:`, `http:`, `mailto:`, relative paths.
+Re-audited: `grep -rn "API_KEY\|SECRET\|TOKEN\|password"` across
+`scripts/`, `.github/workflows/`, `workers/` returns only legitimate
+`${{ secrets.* }}` GitHub Actions interpolations
+(`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_R2_ACCESS_KEY`,
+`CLOUDFLARE_R2_SECRET_KEY`, `CLOUDFLARE_ACCOUNT_ID`,
+`LHCI_GITHUB_APP_TOKEN`). `.gitignore` now explicitly lists `.env`,
+`.dev.vars`, `*.pre-bounce.md` (added since the 2026-05-25 audit,
+which flagged their absence — **RESOLVED**). No `.pem`/`.key`/
+credential files tracked.
 
 ---
 
 ## Performance Bottlenecks
 
-### Initial Paint on Large Archives Is JSON-Bound, Not Network-Bound
+### Active-surface pages are within budget; dormant surface is not tracked
 
-`geipan/index.html` weighs **3.3 MB** entirely because every case is inlined as JSON in `<script id="arch-data">`. On a 5 Mbps mobile connection, that's a 5-second First-Contentful-Paint delay before JS can render anything. The recent commit 25cd124 ("perf+a11y: timeline /api/all.json fast-path") shows the team has begun moving toward "fetch JSON separately" but only on timeline.html.
+`dist/index.html` 222 KB, `dist/aaro/index.html` 258 KB,
+`dist/nara/index.html` 216 KB, `dist/nasa/index.html` 98 KB — all
+under the 500 KB target from STATE.md's Performance Metrics table.
+`dist/pagefind/` totals 1.0 MB (sharded WASM, loads incrementally),
+replacing the old 4.6 MB Lunr blob. **However**, per the "two
+Lighthouse configs" concern above, there is currently no live CI gate
+verifying these numbers stay under budget on every change — the
+config that asserts it is wired to a disabled trigger.
 
-**File:** `geipan/index.html`, plus the GEIPAN-specific paginator branch in `scripts/templates/archive.py:38`.
+### Dormant archives unchanged (out of active budget by design)
 
-**Fix:** Migrate the GEIPAN page to the same `/api/all.json` fast-path used by `search.html` and `timeline.html` (commit 7294b29).
-
-### `api/all.json` and `api/by-archive.json` Are Both 4.6 MB
-
-These two files together are **9.2 MB**. They appear to contain the same data, just re-keyed:
-- `api/all.json` — 4,584,960 bytes (`build-api.py`)
-- `api/by-archive.json` — 4,585,111 bytes (151-byte delta = re-keying overhead)
-
-**File:** `scripts/build-api.py`.
-
-**Fix:** Generate `by-archive.json` as a shallow index pointing into a single `all.json`, or split per-archive shards so consumers fetch only what they need.
-
-### Inline JSON in Index.html Defeats SW Stale-While-Revalidate
-
-The benefit of stale-while-revalidate for `/api/*.json` (sw.js:93-106) is **bypassed** for the archive index pages because their manifest is embedded inline in the HTML response — the HTML cache invalidates and refetches the whole manifest on every deploy.
-
-**Fix:** Externalise the manifest to a separate JSON file per archive. Cache the HTML shell + JSON independently.
-
-### Images Lack `loading="lazy"` on the Hero Carousel
-
-`grep` of `index.html` for `<img...src=` returned only one image without `loading="lazy"` — the hero carousel imagery. CLAUDE.md §4 requires hero carousel autoplay, so the first frame must be eager-loaded, but slides 2+ should be lazy.
-
-**File:** `index.html` hero-carousel.
-
-**Fix approach:** Mark all carousel slides except slide 1 as `loading="lazy"`.
+The 11 dormant archives (geipan 3.2 MB `index.html` + 3.1 MB
+`cases.json`, uk, brazil, etc.) retain their pre-migration weight
+since they ship as static legacy HTML, not Astro pages. Acceptable per
+CLAUDE.md §2 (not user-navigable from the active surface), but direct
+URL visitors to `/geipan/` still pay the full 6+ MB weight with no SW
+precache coverage guarantee (dormant pages get `data-pagefind-ignore`
+but the migration's SW/precache work targeted the active surface).
 
 ---
 
 ## Fragile Areas
 
-### `build-aaro.py` — 1,360 Lines, Monolithic
+### `scripts/copy-legacy-archives.sh` is the sole guardian of the dormant-archive URL contract
 
-The single largest builder. Contains its own manifest, HTML template, case data, and rendering logic. Recent refactor commits (4fe2134, c823efb) extracted lightbox/archive JS but the file itself remains 1,360 lines including hand-written hero HTML and case data. Changes are diff-noisy and review-risky.
+**Files:** `scripts/copy-legacy-archives.sh`
 
-**File:** `scripts/build-aaro.py`.
+A single postbuild bash script (with a hand-maintained per-slug loop
+and an explicit skip-list for partial-port archives) is now the only
+thing standing between `legacy/<slug>/` and the correct `dist/<slug>/`
+URL. Getting the skip-list wrong (e.g., accidentally copying a
+legacy `index.html` for a partial-port slug like `aaro`) would
+silently shadow the Astro-rendered route with stale static HTML — the
+script has an explicit comment acknowledging this exact risk ("a 404
+here would break the live site") but no automated test asserts the
+skip-list matches the actual set of Astro-owned routes.
 
-**Why fragile:** Touching any subsection (hero, headlines, archive, FAQ) requires understanding the file's full structure. A typo in a triple-quoted Python string silently produces broken HTML in `aaro/index.html` (the build doesn't validate output).
+### Phase 5 (scrape automation) is ~30% done and stalled with no forward commits
 
-**Safe modification:** Use the html-validate workflow (`.github/workflows/html-validate.yml`) as a gate. CI already verifies "0 errors across all own pages" (commit 1c737d6).
+**Files:** `.planning/phases/05-scrape-automation/05-0{3,4,5,6,7}-PLAN.md`
+(no matching SUMMARY.md files)
 
-**Test coverage:** No unit tests anywhere in the repo. The CI workflows (html-validate, lighthouse, links via lychee) are the only safety net.
+Plans 05-03 through 05-07 (Workers cron skeleton, per-archive scrape
+lanes, GH Actions curl_cffi runner, R2 promote pipeline, and
+whatever 05-07 covers) have PLAN.md files but no SUMMARY.md — they
+have not been executed. All work since 2026-05-28 has been Phase 4.1
+(legacy reorg) or ad-hoc quick-tasks (Release 03), not Phase 5. The
+scrape-automation milestone is open-ended until the Akamai spike
+(concern above) unblocks it.
 
-### `parse-aaro.py` + `extract-evidence.py` — Run Order Matters, Implicit
+### `src/sw.ts` `ALLOW_SKIP_WAITING = false` is a manual Phase-6 flip
 
-`scripts/sync.sh:210-212`:
-```bash
-python3 "$ROOT/scripts/build-wargov.py"
-python3 "$ROOT/scripts/parse-aaro.py"
-python3 "$ROOT/scripts/extract-evidence.py"
-python3 "$ROOT/scripts/build-aaro.py"
-```
+**Files:** `src/sw.ts:44-49`
 
-`parse-aaro.py` and `extract-evidence.py` produce intermediate state that `build-aaro.py` reads. The dependency is not declared anywhere except this script's ordering. `update_all.sh:68-70` repeats the same ordering. Running build-aaro.py first will silently produce a stale page.
+The service worker intentionally does not `skipWaiting()` on install
+(`ALLOW_SKIP_WAITING = false`, gated behind a runtime global rather
+than inlined so a test can grep-assert the literal). The code comment
+states "Phase 6 cutover plan flips to TRUE after users have
+transitioned off the Phase 1 kill-switch SW" — this is a manual
+one-line flip that must be remembered and executed at the correct
+point in a future Phase 6, with no tracking issue found referencing
+it besides this source comment and CLAUDE.md §13.
 
-**Fix:** Document the dependency in `build-aaro.py`'s docstring or have `build-aaro.py` invoke the prerequisites itself.
+### Root-level `sw.js` kill-switch — stale artifact of uncertain relevance
 
-### `scripts/sync.sh` and `update_all.sh` Are 90% Overlapping
+**Files:** `sw.js` (repo root, 92 lines)
 
-Both scripts orchestrate "download → build → done." `sync.sh` adds an interactive picker; `update_all.sh` adds release upload + sitemap + commit + push. They both maintain their own copy of the build-script ordering. A new build step must be added to both.
-
-**Files:** `scripts/sync.sh:206-222`, `scripts/update_all.sh:67-78`.
-
-**Fix:** Extract the build-step list into a single function or array sourced by both.
+This is the Phase-1 kill-switch service worker (self-unregisters,
+nukes all caches, intended for the *old* GitHub-Pages-hosted origin
+during cutover). It is **not** the service worker Astro ships — the
+production SW is compiled from `src/sw.ts` via `@vite-pwa/astro`
+`injectManifest` and relocated to `dist/sw.js` by a custom Astro
+integration in `astro.config.mjs` (`swRelocator`). Root `sw.js` is
+version-stamped by `scripts/build-sw.py` and is not obviously wired
+into any current build or deploy step (`copy-legacy-archives.sh` only
+copies from `legacy/`, not repo-root files). Given CF Pages is the
+live origin today (DNS cutover already happened per commit history),
+this file appears to be inert leftover from the pre-cutover safety
+plan. Not urgent, but worth an explicit decision: confirm it's truly
+dead and delete it, or document why it's still needed.
 
 ---
 
 ## Scaling Limits
 
-### GitHub Releases Per-Asset / Per-Release Quotas
+### GitHub Releases per-tag asset quotas (carried over, now secondary)
 
-GitHub Releases have a 2 GB per-file limit and unlimited size per release in practice, but per-tag asset *counts* are not unlimited (~1000 assets per release tag in practice). Current state:
-- `pdfs-v1` — 165 PDFs across all archives (CLAUDE.md §5.1)
-- `videos-v1` — 60 mp4 files
-- `wargov-r02-v1` — Release 02 binaries (count unknown without `gh release view`)
+Still true in principle (~1000 assets/tag), but R2
+(`assets.realufo.org`) is now the primary CDN for active-archive
+binaries (per Release-03's URLs: `assets.realufo.org/videos/wargov/…`,
+`assets.realufo.org/pdfs/wargov/…`). GitHub Releases
+(`pdfs-v1`, `videos-v1`, `wargov-r02-v1`) remain as an optional
+cold-storage backup per the Release-03 SUMMARY ("optional GH Releases
+cold-storage backup … cards do NOT reference these") — lower priority
+than before.
 
-**Fix path:** Per-archive tags (already started: `geipan-v1`, `uk-v1` mentioned in CLAUDE.md §5.1).
+### R2 single-PUT 300 MiB wrangler cap
 
-### Inline JSON Manifest Hits ~5 MB Hard Wall
-
-Browsers parse inline JSON faster than fetched JSON for moderate sizes, but `<script id="…" type="application/json">` blocks above ~10 MB start to hit V8 string-length / parse-time issues on mobile. `geipan/index.html` is already at 3.3 MB with 3000 records. Adding the UK National Archives full catalog (~70k records) would blow past this ceiling.
-
-**Fix:** Migrate to fetched JSON for any archive with >1000 records.
+Directly caused Known Live Issue #1. Any future single-file asset over
+300 MiB (this project already has 2, and AARO/DOD video releases have
+historically included multi-GB files) requires an S3-multipart path
+that is currently manual/undocumented as a repeatable script — no
+`scripts/upload-r2-multipart.sh` or equivalent exists yet. **Fix:**
+codify the multipart upload as a script (aws-cli or rclone against the
+R2 S3-compat endpoint, matching the credentials/config pattern already
+established in `.github/workflows/r2-sync.yml`) so this doesn't
+require a bespoke operator runbook every time a release includes a
+large video.
 
 ---
 
 ## Dependencies at Risk
 
-### `curl_cffi` — Required for Akamai-Fronted Hosts, Soft-Installed
+### Astro 5.x pin — verify on every `pnpm add`/lockfile bump
 
-`.github/workflows/scrape.yml:27`:
-```yaml
-- name: Install dependencies (curl_cffi for Akamai-fronted hosts)
-  run: pip install --upgrade pip && pip install curl_cffi || true
-```
+**Files:** `package.json:34` (`"astro": "~5.18.0"`),
+`.planning/decisions/astro-version-pin.md`
 
-The `|| true` means a failed install (e.g. PyPI outage, wheel-build failure on a new Python release) silently downgrades the war.gov downloader from "works on Akamai" to "403 Forbidden." Combined with `python3 scripts/scrape-aaro.py || true`, an Akamai-blocked run looks identical to a successful one in the CI log.
+Pinned to `~5.x` (not `^5`) specifically because Astro 6 broke the
+`@astrojs/cloudflare` adapter's prerender behaviour (upstream issue
+#15684, per STATE.md Key Decisions). `@astrojs/cloudflare` itself is
+on `^12.6.0` (caret, not pinned) — a minor/patch bump to the adapter
+could reintroduce adapter-specific breakage independent of the Astro
+core pin. No CI check currently asserts the Astro version stays
+within the `~5.18` range beyond the lockfile itself.
 
-**File:** `.github/workflows/scrape.yml:27`.
+### `curl_cffi` soft-installed in `scrape.yml` [carried over, now secondary]
 
-**Fix:** Drop the `|| true` from the dependency install. Fail loudly if `curl_cffi` won't install — these are paramount for war.gov access.
+`pip install curl_cffi || true` remains at `.github/workflows/scrape.yml`
+line ~15, but since the workflow fails at a *later*, unconditional step
+(`Rebuild all archive HTML`, no `|| true`) regardless of whether
+`curl_cffi` installed, this particular soft-fail is currently masked by
+the bigger, unconditional breakage documented above. Once `scrape.yml`
+is fixed/rewritten (Phase 5), this soft-install risk becomes live again
+and should be hardened at that point.
 
-### No `requirements.txt` / `pyproject.toml`
+### `wrangler` version drift risk between local operator and CI
 
-`scripts/` uses `curl_cffi` (mentioned in workflow), `subprocess`, `csv`, `json`, `urllib`, plus `lxml` likely. There is no declared Python dependency manifest at the repo root.
+**Files:** `.github/workflows/deploy-cf-pages.yml` (pins
+`wranglerVersion: '4.95.0'`), `workers/akamai-spike/package.json`
+(`wrangler ^4.95.0`, caret)
 
-**Impact:** A fresh clone + `python3 scripts/sync.sh --all` will fail with `ModuleNotFoundError: curl_cffi` and no clear remediation path. CLAUDE.md §10 step 3 doesn't mention dependency install.
-
-**Fix:** Add `requirements.txt` listing `curl_cffi`, `beautifulsoup4` (if used), any other runtime deps.
+The deploy workflow pins wrangler exactly; the Akamai-spike Worker's
+`package.json` uses a caret range. A future `pnpm install` in
+`workers/akamai-spike/` could pull a wrangler minor ahead of what's
+been validated, though the spike Worker is throwaway/low-stakes by
+design.
 
 ---
 
 ## Missing Critical Features
 
-### No Automated Diff-and-Notify on Source Drift
+### No repeatable large-file R2 upload path
 
-The pipeline regenerates HTML from scratch every week. If a source page changes substantively (new file, removed file, renamed catalog), the user is never alerted — they just see different content next time they visit.
+See Scaling Limits above — the 300 MiB single-PUT cap has already
+blocked one release from shipping completely (Known Live Issue #1)
+and will recur for any future large-video release until a scripted
+multipart path exists.
 
-**Fix:** `scripts/check-sources.py` already emits `dead-links.json`/`dead-links.md`. Extend it to emit "new files since last run" → could feed `CHANGELOG.md` (commit a098534 added `append-changelog.py` partly for this).
+### No automated "scrape.yml is red" alerting beyond GitHub's default email
 
-### No Automated "New Release Detected" Trigger
-
-The weekly cron at 06:00 UTC Monday (`.github/workflows/scrape.yml:5`) is the only trigger. Releases that drop mid-week (which Release 02 did, May 22 — commit 34d0461) are 7 days late to surface unless someone runs `workflow_dispatch` manually.
-
-**Fix:** A lightweight daily "fingerprint check" workflow that hits a handful of source-page URLs, computes a content hash, and triggers the full scrape if any source has changed.
+Given `scrape.yml` has been failing every scheduled run since
+2026-05-28 with (per the evidence above) apparently zero human
+follow-up commits addressing it, GitHub's default scheduled-workflow-
+failure email notifications are evidently not being acted on. No
+Slack/issue-create escalation exists (this was also flagged, unfixed,
+in the 2026-05-25 audit).
 
 ---
 
 ## Test Coverage Gaps
 
-### Zero Unit Tests Repo-Wide
+### Playwright suite exists (1,145 lines) but has no automatic trigger [MEDIUM — largest residual gap from the old "zero tests" finding]
 
-No `tests/`, `__tests__/`, `test/`, or `*.test.*` directories anywhere in the repo. The build scripts are tested only by:
-1. CI HTML validation (`.github/workflows/html-validate.yml`)
-2. CI Lighthouse (category-gated, `.github/workflows/lighthouse.yml`)
-3. CI link checking (`.github/workflows/links.yml` via lychee)
-4. CI nav/footer drift gates (`sync-nav.yml`, `sync-footer.yml`)
-5. Manual schema-ish checks in `scripts/validate-manifests.py` (warnings allowed)
+**Files:** `tests/visual-regression.spec.ts` (59),
+`tests/tone-colours.spec.ts` (67), `tests/js-off.spec.ts` (87),
+`tests/search.spec.ts` (92), `tests/lightbox.spec.ts` (183),
+`tests/sw.spec.ts` (191), `tests/r2-urls.spec.ts` (191),
+`tests/pagination.spec.ts` (275)
 
-**Untested:**
-- CSV parsing logic (`build-wargov.py:_load_dvids_map`, ID resolution)
-- DVIDS map fallback paths (recent commits 99b2fda, 2f67feb show this is bug-prone)
-- Lightbox URL routing (local vs release vs source)
-- Service worker cache strategy (just patched in dcbc0d7)
-- `git ls-files` vs `os.listdir` fallback (CLAUDE.md §6.2)
+This is the single biggest structural improvement since the
+2026-05-25 audit (which found zero tests anywhere) — real regression
+coverage now exists for exactly the areas the old audit called out as
+undertested (lightbox URL routing, SW cache strategy, search). But
+per the `quality-gates.yml` disabled-trigger concern above, none of
+these specs run on a normal push or PR today; they require a manual
+`workflow_dispatch` with a `preview_url` input. There is also no
+`"test"` script in `package.json` — a contributor has no single local
+command to run the suite without first standing up a preview URL and
+passing `PREVIEW_URL` manually. **Fix:** re-enabling the
+`quality-gates.yml` trigger (already recommended above) closes most of
+this gap in one move; additionally consider a `pnpm test` script
+alias for local `PREVIEW_URL=http://localhost:4321 pnpm exec
+playwright test`.
 
-**Risk:** Every recent fix commit (37 of the last 88 commits over 30 days = **42% of commits are fixes**) addresses a regression that a unit test would have caught.
+### No unit tests for Python normalizers
 
-**Files:** All `scripts/build-*.py`, `scripts/_*.py`, `scripts/templates/*.py`.
+**Files:** `scripts/normalize-aaro.py`, `normalize-csv.py`,
+`normalize-nara.py`, `normalize-nasa.py`, `normalize-nz.py`,
+`normalize-uruguay.py`
 
-**Priority:** **HIGH.** A 6-fix-commits-per-week rate indicates the lack of tests is now an active cost.
-
-**Fix approach:**
-1. Add `tests/test_build_wargov.py` covering: CSV row → JSON manifest entry transformation; DVIDS ID → DOD URL resolution; local-file detection via `git ls-files`.
-2. Add `tests/test_sw.py` (Node-based or browser via Playwright) covering: install, fetch handler for 200/404/non-2xx navigation, JSON stale-while-revalidate.
-3. Gate `main` on the test suite.
+These are the D-10 "LOCKED contract with `Card.astro`" scripts — any
+CSV/JSON→content-collection field mismatch here silently produces
+malformed cards. Covered indirectly by `js-off.spec.ts` /
+`visual-regression.spec.ts` (which would catch a rendering break) but
+not by a focused unit test on the transform logic itself (e.g., DVIDS
+ID resolution, release-batch mapping, R2 URL rewriting). The
+`--check` mode flags exist for drift detection (e.g.
+`normalize-csv.py --check`) but are invoked manually per the
+Release-03 SUMMARY, not gated in CI.
 
 ---
 
-## Recent Bug Pattern — Trend Analysis
-
-**Last 30 commits:**
-- Fix commits: **37 of 88** (~42%) — based on `git log --grep="fix"`
-- Refactor commits extracting inline JS to shared templates: 4 (fcaf9bc, 33ea247, 0c36c7f, c823efb, 4fe2134)
-- CI fix commits: 7 (lychee, lighthouse, html-validate, scrape.yml YAML)
-- Feat commits adding archive content: ~10
-- The pattern is: **add archive → discover an inline-JS/link/CSV/manifest edge case → fix individually**.
-
-**Trend implication for the strategic question:** Each new archive is producing a long tail of edge-case fixes (DVIDS resolution, AUD rows, CSV row metadata, lightbox meta panel). The cost-per-new-archive is rising, not falling, even with the templates/ refactor in progress. This is the most concrete data point in favour of a framework migration — *not* because the current architecture can't scale, but because the **rate of regression fixes** is climbing faster than features.
-
----
-
-*Concerns audit: 2026-05-25*
+*Concerns audit: 2026-07-11*

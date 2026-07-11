@@ -1,357 +1,606 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-05-25
-
-This project has three distinct code surfaces, each with its own conventions:
-
-1. **HTML/CSS/JS** — one self-contained `index.html` per archive (15 archives + 10 cross-site pages). CSS and JS are inline; zero build tooling.
-2. **Python build scripts** — `scripts/build-*.py` regenerate the HTML manifests.
-3. **Shell download scripts** — `scripts/dl-*.sh` mirror upstream assets idempotently.
-
-CLAUDE.md §3, §4, §7, §8, §9, §11 is the canonical spec. The conventions below are extracted from comparing CLAUDE.md against the actual code in `aaro/index.html`, `nasa/index.html`, `search.html`, and the `scripts/` directory.
-
-## Naming Patterns
-
-**Files:**
-- Archive HTML: `<slug>/index.html` (one per archive — `aaro/index.html`, `nasa/index.html`, `geipan/index.html`, …)
-- Story pages: `<slug>/<case-slug>.html` lowercase-hyphen (`aaro/tic-tac.html`, `aaro/jal-1628.html`, `uk/rendlesham.html`)
-- Top-level utility pages: `<name>.html` lowercase (`search.html`, `timeline.html`, `map.html`, `glossary.html`, `compare.html`, `whatsnew.html`)
-- Python build scripts: `scripts/build-<slug>.py`
-- Python scrapers: `scripts/scrape-<slug>.py`
-- Shell downloaders: `scripts/dl-<slug>.sh`
-- Helper Python modules (private to scripts dir): `_underscore_prefix.py` (`_site_template.py`, `_release_manifest.py`, `_mirror_shared.py`)
-- Shared template package: `scripts/templates/<module>.py`
-
-**Directories:**
-- Archive root: lowercase slug matching CLAUDE.md §2 (e.g. `aaro/`, `nasa/`, `geipan/`, `uk/`, `brazil/`, …)
-- Per-archive subdirs (consistent across all archives): `pdfs/`, `videos/`, `assets/images/`, `pages/` (Wayback HTML snapshots), `.cache/` (gitignored parser output)
-- `bundles/Release_1/`, `bundles/uapvideos/`, `bundles/release_02_document_bundle/` — gitignored war.gov payloads
-- `slideshow/`, `slideshow-2/` — war.gov hero imagery (tracked)
-
-**CSS classes:**
-- Single-word lowercase for layout primitives: `.container`, `.hero`, `.seal`, `.brand`, `.scanlines`, `.coords`
-- Hyphenated for compound roles: `.hero-carousel`, `.carousel-slide`, `.arch-grid`, `.arch-controls-bar`, `.head-card`, `.classified-stamp`, `.gov-banner`, `.flag-dot`, `.nav-toggle`, `.header-wrap`
-- Lightbox prefix `lb-` for lightbox internals: `.lb-inner`, `.lb-close`, `.lb-prev`, `.lb-next`, `.lb-counter`, `.lb-rotate`, `.lbm-title`, `.lbm-desc` (meta panel)
-- BEM-ish modifier: `.carousel-btn.prev`, `.tab.active`, `.carousel-slide.active`
-
-**HTML IDs:**
-- Single canonical instance per page: `id="nav-toggle"`, `id="primary-nav"`, `id="hero-carousel"`, `id="carousel-track"`, `id="carousel-dots"`, `id="carousel-caption"`, `id="lightbox"`, `id="lb-inner"`, `id="arch-data"`, `id="arch-grid"`, `id="arch-search"`, `id="arch-sort"`, `id="filter-region"`, `id="filter-status"`, `id="filter-perpage"`
-- The embedded JSON manifest is always `<script id="arch-data" type="application/json">` (legacy war.gov uses `<script id="archive-manifest">` — both are accepted by `scripts/validate-manifests.py`).
-
-**JavaScript:**
-- `const`/`let` over `var` in newer code (post-aaro JS uses `const`); the lightbox IIFE still uses `var` (older idiom — kept for consistency within that block).
-- Lower camelCase for functions and locals: `openAt`, `navLb`, `closeLb`, `goTo`, `applyLang`, `mediaFor`, `renderPagination`, `cardHtml`, `statusBadge`.
-- Single-letter variable names accepted inside tight scopes / template literals: `D`, `i`, `e`, `t`, `b`, `g`, `q`, `a`, `r`, `s` — typical when iterating manifest records or building DOM.
-- IIFEs wrap all page-level scripts: `(function(){ … })();` — see `aaro/index.html:834` and `aaro/index.html:1140`. No top-level identifiers escape into `window` except deliberate exports (e.g. `window._lb`).
-
-**Python:**
-- `snake_case` everywhere: `git_tracked()`, `lsdir_present()`, `validate_record()`, `apply_manifest()`, `make_nav()`.
-- `UPPER_SNAKE` for module-level constants: `REPO`, `ROOT`, `CACHE`, `ARCHIVES`, `ALIASES`, `KNOWN_FIELDS`, `PDF_RELEASE_BASE`, `SCRIPT_IDS`, `EXPECTED_VIDEOS_R01`.
-- Single-letter helpers acceptable for terse builders: `L()` for "local path", `R()` for "release URL" (`scripts/build-nasa.py:32`, `:40`).
-- Private helper modules use `_underscore_prefix` (`scripts/_site_template.py`, `scripts/_release_manifest.py`).
-
-**Manifest record keys (the single most important naming contract):**
-Two short-key shapes coexist across archives because the codebase grew incrementally. Both are valid; `scripts/validate-manifests.py` enforces the alias table at `scripts/validate-manifests.py:55`. Prefer **short keys** for new archives — they cut inline JSON size by ~40%:
-
-| Long key (verbose) | Short key (preferred) | Meaning |
-|--------------------|----------------------|---------|
-| `title` | `ti` | Card title (verbatim official) |
-| `desc` / `description` | `de` | Card body; **leave empty rather than fill** (CLAUDE.md §9) |
-| `agency` | `ag` | Primary releasing body |
-| `category` / `type` | `t` or `cat` | `PDF` / `VID` / `IMG` / `AUD` / `CATALOG` / `SLIDE` |
-| `date` | `dt` or `date` | Incident or release date |
-| `region` | `re` | Geographic context |
-| `status` | `st` | `Unresolved` / `Resolved` / `Undergoing Analysis` / `Closed` |
-| `url` | `u` | Download URL (release URL OR live source) |
-| `src` | `s` | Official source page (used for Source ↗ button) |
-| `local` | `l` | Repo-relative path if file is in git, else `''` |
-| `thumb` | `th` | Small preview image path |
-| `dvidsId` | `di` / `dvidsId` | DVIDS video numeric ID |
-| `embed` | `embed` | YouTube/Vimeo embed URL (NASA only) |
-
-## Code Style
-
-**Formatting:**
-- No linter or formatter is enforced for HTML/CSS/JS — Prettier/ESLint not present, no `package.json`.
-- CSS: properties on single lines, related rules grouped, comment dividers between sections (e.g. `/* HERO CAROUSEL */`, `/* HEADLINES */`). 2-space indent.
-- HTML: 2-space indent, attributes on one line, `<meta>` block in `<head>` ordered: charset → viewport → title → description → canonical → og:* → twitter:* → favicon → preconnect → fonts.
-- Python: PEP 8 broadly, 4-space indent, but **inline-imports are common** inside functions (e.g. `import subprocess` mid-script). Docstrings use triple-double-quotes; module docstring at the top of every `scripts/build-*.py`.
-- Shell: 2-space indent inside function bodies, `#` comment headers with `# ====...====` boxes for section banners (see `scripts/dl-aaro.sh`).
-
-**Linting (HTML only):**
-- `.htmlvalidate.json` runs in CI via `.github/workflows/html-validate.yml`. Recommended ruleset with these overrides off: `no-inline-style`, `no-redundant-role`, `no-trailing-whitespace`, `no-implicit-button-type`, `void-style`, `attribute-boolean-style`, `require-sri`, `no-raw-characters`, `long-title`.
-- Warning level: `wcag/h32`, `wcag/h36`, `wcag/h37`, `wcag/h67`, `element-required-attributes`, `prefer-native-element`.
-- Scraped upstream HTML (`aaro/pages/`, `nara/pages/`) is excluded — they ship malformed asp.net markup.
-
-**Lighthouse thresholds (`.lighthouserc.json`):**
-- Performance: warn < 0.80
-- Accessibility: **error** < 0.90 (hard gate)
-- Best-practices: warn < 0.85
-- SEO: **error** < 0.90 (hard gate)
-
-## Import Organization
-
-**HTML `<head>` order (every archive):**
-1. `<meta charset>` + `<meta name="viewport">`
-2. `<title>` (format: `<Archive> — <Full Name> | realufo.org` or `<Archive> — <Tagline> (Offline Mirror)`)
-3. `<meta name="description">`
-4. `<link rel="canonical">`
-5. `og:*` Open Graph block (title, description, image, url, type, site_name)
-6. `twitter:*` Twitter Card block
-7. `<link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">` + apple-touch-icon
-8. `<link rel="preconnect">` to fonts.googleapis.com and fonts.gstatic.com
-9. `<link>` to Google Fonts CSS (Source Serif 4 + JetBrains Mono — **no third font** per CLAUDE.md §3.3)
-10. Inline `<style>` block
-
-**JavaScript:**
-- No ES modules, no `import` statements anywhere in shipped JS — every script is an inline IIFE in `index.html`.
-- Cross-script communication via `window._lb` (lightbox), `window.NAV_*` (rare), and `document.getElementById('arch-data').textContent` (manifest).
-
-**Python:**
-- Stdlib first, then `from __future__ import annotations` (in newer files: `scripts/build-api.py`, `scripts/build-cases.py`, `scripts/build-feeds.py`, `scripts/build-geo.py`, `scripts/build-og.py`, `scripts/build-pages-index.py`, `scripts/build-stories.py`).
-- Sibling-script imports use a `sys.path.insert(0, …)` shim at the top: `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))` — see `scripts/build-aaro.py:11`, `scripts/build-nasa.py:8`.
-- Local imports from `_site_template`, `_release_manifest`, `templates.nav`, `templates.footer`, `templates.head`, `templates.lightbox`, `templates.shared`, `templates.i18n`.
-
-**Path Aliases:** None. All paths are repo-relative, computed from `REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))` in every Python script.
-
-## Error Handling
-
-**JavaScript:**
-- **Image fallback** is the canonical pattern (CLAUDE.md §7 invariant #3): every `<img>` rendered from manifest data carries an `onerror` that swaps `this.src` to the remote URL (`a.u` or `a.url`) and then nulls itself so it can't loop. See `aaro/index.html:498`, `aaro/index.html:549`, `aaro/index.html:1237`.
-  ```js
-  const fb = a.u ? `onerror="this.onerror=null;this.src='${esc(a.u)}';"` : '';
-  ```
-- **Video fallback** uses two `<source>` children — local first, remote second — inside one `<video>` element (CLAUDE.md §7 invariant #4, CLAUDE.md §11 "don't use single-source video"). See `aaro/index.html:1241`.
-- **PDF lightbox** routes local PDFs to an `<iframe src="…#view=FitH">` and release-URL PDFs to `window.open(href, '_blank')` because GitHub Release URLs serve `Content-Disposition: attachment` which breaks iframe embed (`aaro/index.html:1250`).
-- **JSON parse** of the embedded manifest is unguarded — failure should crash the page loud (`const D = JSON.parse(document.getElementById('arch-data').textContent);` at `aaro/index.html:868`). This is intentional: if `arch-data` is malformed the page is broken anyway and silent failure would hide it.
-- **search.html** catches a single fetch failure and falls back to per-mirror scrape: `console.warn('search: /api/all.json unreachable, falling back to per-mirror scrape', err)` (`search.html:1215`).
-- **HTML escaping** is universal — every value that enters innerHTML goes through `esc()`:
-  ```js
-  function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  ```
-  Defined identically at `aaro/index.html:873` and `aaro/index.html:1150`.
-
-**Python:**
-- Build scripts treat git unavailability as recoverable — `git ls-files` is wrapped in `try/except (subprocess.CalledProcessError, FileNotFoundError)` and falls back to `os.listdir`. See `scripts/build-aaro.py:31-44`, `scripts/build-nasa.py:16-26`, `scripts/build-uk.py:21-28`, `scripts/build-brazil.py:18-26`. **This pattern is mandatory** for all new build scripts (CLAUDE.md §6.2).
-- File-not-found on cache JSON is allowed to bubble — `json.load(open(...))` without guard, because the build cannot proceed without parsed evidence.
-- Validation (`scripts/validate-manifests.py`) collects errors/warnings into lists, exits non-zero on errors, supports `--strict` to fail on warnings too.
-- `KeyboardInterrupt` caught at top level and exits `130` (`scripts/validate-manifests.py:220`).
-
-**Shell:**
-- `set -uo pipefail` everywhere (not `-e` — failures are individually inspected so the rest of the run continues). See `scripts/dl-aaro.sh:17`, `scripts/dl-nasa.sh:11`, `scripts/sync.sh:18`.
-- The `fetch` / `fetch_url` helper deletes partial files on failure (`rm -f "$dest"`) before returning non-zero — see `scripts/dl-aaro.sh:79`, `scripts/dl-nasa.sh:24`.
-- Cache hit detection: `[ -s "$dest" ] && return 0` — file exists *and* is non-empty (`-s`, not `-f`). This is the **idempotency contract** (CLAUDE.md §6.1).
-
-## Logging
-
-**Framework:** None. Plain stdout.
-
-**JavaScript:**
-- `console.warn` reserved for fallback paths the user might care about (`search.html:1215`).
-- No `console.log` in shipped pages — searched repo, only one `console.warn` total.
-
-**Python:**
-- `print()` statements at the end of every build script announce what was written:
-  ```python
-  print(f'wrote {ROOT}/index.html ({len(PAGE):,} bytes)')
-  print(f'  total assets: {stats["total"]}, local: {stats["local_total"]}')
-  ```
-  See `scripts/build-nasa.py:747`, `scripts/build-aaro.py:1357`. **Match this style** in new build scripts.
-
-**Shell:**
-- Indented status lines with bracketed verbs: `[ok]`, `[cache]`, `[FAIL]`. Example: `echo "  [ok]    $slug ($(wc -c <"$dest" | tr -d ' ') bytes)"` (`scripts/dl-aaro.sh:107`).
-- Section banners use `»` glyph: `echo "» NASA PDFs"`, `echo "» AARO page snapshots → aaro/pages/"`.
-
-## Comments
-
-**When to Comment:**
-- Block comment at top of every Python script (module docstring) explaining inputs, outputs, side effects.
-- Block comment at top of every shell script (`# ====...====` box) explaining purpose, modes, idempotency, usage examples.
-- Inline `/* ... */` comments inside CSS for design-system landmarks (`/* HERO */`, `/* HEADLINES */`, `/* HERO CAROUSEL */`).
-- Inline `// ...` comments inside JS to document why-not-what, especially around fallback paths (e.g. `aaro/index.html:1106` `/* Lightbox lifecycle delegated to LIGHTBOX_JS … */`).
-- HTML-style `<!-- ... -->` markers wrap shared blocks injected by `scripts/sync-nav.py` and `scripts/sync-footer.py`: `<!-- NAV-SCRIPT:SHARED -->` … `<!-- /NAV-SCRIPT:SHARED -->`.
-
-**JSDoc/TSDoc:** Not used.
-
-**Python docstrings:**
-- Every script and helper module has a module-level triple-quoted docstring.
-- Function docstrings are common but not universal — present on non-obvious helpers (`L()`, `git_tracked()`, `lsdir()`, `validate_record()`), omitted on trivial ones.
-
-## Function Design
-
-**Size:**
-- JS functions are typically 5–40 lines; the lightbox `render()` function (`aaro/index.html:1219`) is the longest at ~40 lines and contains the type-dispatch logic that's intentionally kept in one place.
-- Python build scripts are flat — heavy use of module-level code (constants, asset list literals, loops). `scripts/build-aaro.py` is 1360 lines with most of the work inline; `scripts/build-nasa.py` is 750 lines with the asset list inline. **This is by design** — each build script is the single source of truth for one archive.
-
-**Parameters:**
-- JS: small fixed positional parameters, e.g. `openAt(idx)`, `navLb(delta)`, `goTo(i)`, `statusBadge(st)`, `mediaFor(a)`, `cardHtml(a)`.
-- Python: positional, with light use of defaults. Type hints only in newer files (those with `from __future__ import annotations`).
-
-**Return Values:**
-- Python build helpers return primitives (`str`, `set[str]`) or `None`. No exotic return shapes.
-- JS render functions either return a string (HTML to splice) or mutate the DOM directly — never both.
-
-## Module Design
-
-**Exports:**
-- Python: re-exports through `scripts/_site_template.py` for backward compat (`scripts/_site_template.py:23-49`) — when the implementation moved into `scripts/templates/`, the old import paths kept working. Pattern: `from templates.nav import (PINNED, SITE_PAGES, MORE, STORIES, _href, make_nav, NAV_STYLE, NAV_SCRIPT)  # noqa: E402,F401`.
-- JS: explicit single export point — `window._lb = { open, close, nav, setList, getList }` (`aaro/index.html:1282`). Other inline scripts read `window._lb` and never define competing globals.
-
-**Barrel Files:** `scripts/_site_template.py` acts as the canonical barrel for the `templates/` package. `scripts/templates/__init__.py` exists but is empty — individual modules are imported by name.
-
-## Mobile-First Specifics (CLAUDE.md §8)
-
-Every page satisfies these without exception:
-- Base styles assume **360 px viewport**. Body is `font-size: 16px` desktop (`aaro/index.html:38`), `15px` on mobile (`aaro/index.html:111`). NASA uses `16px → 15px`.
-- **Single breakpoint at 720 px** for the hamburger flip: `@media (max-width: 720px) { .nav-toggle { display: flex; } nav.primary { display: none; } … }` (`aaro/index.html:97-112`, `nasa/index.html:82-95`). A secondary breakpoint at `719px` covers fine details (`aaro/index.html:448`).
-- Hamburger button is **38 × 38 px** (`aaro/index.html:92`) / **40 × 40 px** (`nasa/index.html:77`) — both above the 36 px DOM minimum; mobile nav links are `padding: 12px 0` (CLAUDE.md §8 calls for ≥ 44 × 44 px touch targets — `12px` vertical padding on `display: block` links delivers that).
-- Lightbox nav buttons: **52 × 52 px desktop, 40 × 40 mobile**, edge-pinned (`aaro/index.html:441`).
-- `body { overflow-x: hidden; }` is set as the last-resort guard rail (`aaro/index.html:43`).
-- `<input>` and `<select>` reach `width: 100%` below 720 px (`aaro/index.html:107`).
-- Tab strip wraps with `flex-wrap: wrap` — never horizontal-scrolls (`aaro/index.html:105`).
-
-## JavaScript Invariants (CLAUDE.md §7 — applied across every archive)
-
-Every archive's inline script implements these. Audit checklist for new archives:
-
-1. **Hamburger toggle** — gets `nav-toggle` + `primary-nav` elements, toggles `.open` class, sets `aria-expanded`, collapses on inner link click. Pattern at `aaro/index.html:855-866`.
-2. **Lightbox** — opens at index, wraps with modulo arithmetic on prev/next, closes on Escape and outside click. Pattern at `aaro/index.html:1262-1287`.
-3. **Arrow-key + swipe navigation** — `keydown` listener with `ArrowLeft`/`ArrowRight`/`Escape`; touch swipe > 50 px horizontal, < 800 ms duration, < 60 px vertical drift = navigate. `aaro/index.html:1270-1281`.
-4. **Image fallback** via `<img onerror>` — see Error Handling above.
-5. **Video multi-source** — local `<source>` first, remote `<source>` second, inside one `<video>` element. `aaro/index.html:1241-1247`.
-6. **PDF lightbox** — iframe ONLY for local files; release URLs open in a new tab. `aaro/index.html:1250-1256`.
-7. **Card click delegation** — uses both `data-idx` (for `openAt`) and `data-action="open"` (`aaro/index.html:1122-1134`).
-8. **`/` keydown focuses search input** — guarded against typing-in-input and against modifier keys. Pattern at `search.html:1134-1143`.
-9. **Search query persists in `?q=`** — restored on load via `URLSearchParams`, debounced-pushed via `history.replaceState`. Pattern at `search.html:1099-1131`.
-10. **Carousel autoplay** — `setInterval(goTo, 6500)`, pauses on `mouseenter`, resumes on `mouseleave`. `aaro/index.html:932-937`.
-
-## Python Conventions (Build Scripts)
-
-**Git-tracking-aware local detection (mandatory):**
-
-```python
-def git_tracked(rel_dir):
-    """Set of filenames committed under <repo>/<slug>/<rel_dir>/."""
-    try:
-        out = subprocess.run(
-            ['git', '-C', REPO, 'ls-files', f'{slug}/{rel_dir}/'],
-            capture_output=True, text=True, check=True,
-        ).stdout
-        prefix = f'{slug}/{rel_dir}/'
-        return {ln[len(prefix):] for ln in out.splitlines() if ln.startswith(prefix)}
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        p = os.path.join(ROOT, rel_dir)
-        return set(os.listdir(p)) if os.path.isdir(p) else set()
-```
-**Why:** GitHub Pages only serves git-tracked files. If a gitignored file exists on the dev machine but not in the repo, `os.listdir()` would falsely mark it `local` and the Download button would 404 on the deployed site. Used in `scripts/build-aaro.py:31`, `scripts/build-nasa.py:16`, `scripts/build-uk.py:21`, `scripts/build-brazil.py:18`, `scripts/build-chile.py:18`, `scripts/build-geipan.py:17`, `scripts/build-nara.py:19`, `scripts/build-wargov.py:34`. **One exception:** `scripts/build-details.py:34-36` uses `os.listdir` because it builds story pages that only run locally during development.
-
-**Manifest embedding:**
-- One `<script id="arch-data" type="application/json">…</script>` block per archive, inline.
-- JSON shape is either a flat list `[{...}, {...}, ...]` or `{"assets": [...], "carousel": [...], "stats": {...}}` (aaro). Both are accepted by the lightbox JS and by `scripts/validate-manifests.py`.
-
-**Release URL builder:**
-```python
-PDF_RELEASE_BASE = 'https://github.com/hectorchanht/war-gov-ufo-release/releases/download/pdfs-v1/'
-def R(fname): return PDF_RELEASE_BASE + urllib.parse.quote(fname)
-```
-Per archive, use the matching tag (`videos-v1`, `pdfs-v1`, `geipan-v1`, …) per CLAUDE.md §5.1.
-
-## Shell Conventions (Download Scripts)
-
-**Mandatory boilerplate at top of every `scripts/dl-*.sh`:**
-```bash
-#!/usr/bin/env bash
-# ============================================================
-# <Archive> downloader.
-# <one-paragraph purpose statement>
-# Idempotent.
-# ============================================================
-set -uo pipefail
-
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-```
-
-**Realistic Chrome UA is required** — many upstream hosts (especially Akamai-fronted `.mil` and `.gov`) block default `curl` UA. Same UA string used across all `scripts/dl-*.sh` files for consistency.
-
-**Idempotent `fetch` helper:**
-```bash
-fetch() {
-  local url="$1" dest="$2"
-  [ -s "$dest" ] && { echo "  [cache] $(basename "$dest")"; return 0; }
-  if curl -fsSL --max-time 120 --connect-timeout 15 -A "$UA" -o "$dest" "$url"; then
-    echo "  [ok]    $(basename "$dest") $(wc -c <"$dest" | tr -d ' ') bytes"
-  else
-    rm -f "$dest"; echo "  [FAIL]  $(basename "$dest")"; return 1
-  fi
-}
-```
-The non-zero return on failure plus `set -uo pipefail` (note: no `-e`) means callers see the failure but the run continues.
-
-**Wayback fallback** (for Akamai-blocked sources):
-```bash
-# Direct fetch fails → look up Wayback snapshot → retry with web.archive.org/web/<ts>id_/<url>
-# Format flags: if_ (frames), im_ (image), id_ (identity bytes)
-```
-Full implementation at `scripts/dl-aaro.sh:53-82`. Use `id_` for binary downloads (PDFs, mp4), `im_` for images.
-
-## House-Style "Don'ts" (CLAUDE.md §11 — strict)
-
-- ❌ Inline arrow `↗` inside header nav links (save for explicit external links)
-- ❌ "OFFLINE MIRROR" banner above the header
-- ❌ `crossorigin="anonymous"` on `<video>` (kills cloudfront playback)
-- ❌ Single-`<source>` `<video>` when both local and remote URLs are known
-- ❌ Filler `desc` strings ("click to play", "view file", "released document"). Empty is fine.
-- ❌ `os.listdir()` alone for local detection — always wrap in `git_tracked()`
-- ❌ Skipping mobile testing — 360 px is the canonical first viewport
-- ❌ Force-pushes to main
-- ❌ Touching `uap-release001.csv` (legacy source of truth)
-- ❌ Calling archive pages "mirrors" in user-facing copy
-
-## Shared Design Tokens (CLAUDE.md §3.2 — do not deviate)
-
-Every archive's inline CSS opens with the same `:root` block. The only variable that changes per archive is `--caution`. CLAUDE.md §3.1 enumerates the 15 approved `--caution` values; the seal `radial-gradient` is per-archive too. Everything else (palette, fonts, rule colors, classified red, gold warm) is shared.
-
-```css
-:root {
-  --bg:#0a0a0c; --bg-2:#111114; --panel:#15151a;
-  --ink:#e8e3d8; --ink-dim:#a8a298; --ink-faint:#6b665d;
-  --rule:rgba(232,227,216,0.12); --rule-strong:rgba(232,227,216,0.28);
-  --stamp:#b91c1c; --caution:<archive-accent>; --warm:#d4a017; --classified:#c9362c;
-  --serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
-  --mono:"JetBrains Mono","SF Mono",Consolas,monospace;
-}
-```
-
-**Typography rules:**
-- Serif for prose, hero titles, card titles
-- Mono for nav, metadata labels, badges, code
-- Mono letter-spacing 0.08–0.24em
-- **No third font.** No Google Fonts beyond Source Serif 4 + JetBrains Mono.
-
-## Accessibility
-
-- Every interactive `<button>` has an `aria-label` (nav-toggle, carousel-prev/next, lb-rotate, lb-prev, lb-next).
-- `<nav>` carries `aria-label="Main navigation"`.
-- `<div class="lightbox">` toggles `aria-hidden="true"`/`"false"` on open/close.
-- Hamburger toggles `aria-expanded="true"`/`"false"` on click.
-- Dropdown menus use `role="menu"` on the `<ul>`.
-- Carousel container has `aria-label="Featured … imagery"` describing the gallery.
-- `<img>` always has an `alt` attribute, even if computed from `a.ti`.
-- Lighthouse accessibility score is a **hard CI gate at 0.90** — drop below and CI fails.
-
-## Drift Observed (aaro vs. nasa)
-
-Comparing `aaro/index.html` against `nasa/index.html` against CLAUDE.md §3-§4:
-
-- **Container max-width differs:** aaro uses `max-width: 1280px` (`aaro/index.html:55`); nasa uses `max-width: 1200px` (`nasa/index.html:44`). CLAUDE.md does not pin a width; both are acceptable.
-- **Body font-size on desktop differs:** aaro `17px` (`aaro/index.html:38`), nasa `16px` (`nasa/index.html:37`). CLAUDE.md §3.3 says "16 px desktop, 15 px mobile" — aaro drifts +1px on desktop. Low priority but flagged.
-- **Hamburger button size differs:** aaro `38×38` (`:92`), nasa `40×40` (`:77`). Both above the 36 px DOM floor; both deliver ≥ 44 px effective touch area via padding. CLAUDE.md §8 floor is satisfied either way.
-- **Scroll-padding differs:** aaro `64px` (`:35`), nasa `70px` (`:34`) — matches each page's sticky-header height. Correct per-page.
-- **`flex-wrap` on header `.container`:** aaro `nowrap` (`:77`), nasa `wrap` (`:64`). nasa's wrap is the more forgiving choice on small viewports.
-
-None of these block a build. The drift is normal evolution; the JS invariants and design tokens are consistent.
+**Analysis Date:** 2026-07-11
+
+This document reflects the codebase after the Astro 5 / Cloudflare Pages
+migration (Phase 4 closed 2026-05-28; Phase 04.1 nav-surface work merged
+through 2026-06-02, plus quick-task `260615-3e3` Release-03 work). It
+supersedes the 2026-05-25 version of this file, which described the
+pre-migration static-HTML-per-archive world (no `src/`, no build step,
+inline `<script>`/`<style>` per page). `CLAUDE.md` (§3 design system, §7
+JS invariants, §8 mobile-first, §9 content rules, §11 don'ts) is the
+canonical spec — this file explains **how those rules manifest in
+actual files** so a future agent can write conforming code without
+re-deriving the rules from scratch.
 
 ---
 
-*Convention analysis: 2026-05-25*
+## 0. The two build surfaces — know which one you're editing
+
+The repo ships **4 ACTIVE archives** (`wargov` at `/`, `aaro`, `nasa`,
+`nara`) via Astro 5 + content collections (`src/`), and **11 DORMANT
+archives** (`geipan`, `uk`, `brazil`, `chile`, `argentina`, `canada`,
+`italy`, `nz`, `peru`, `spain`, `uruguay`) via a legacy static-HTML
+postbuild copy (`scripts/copy-legacy-archives.sh`, wired as `pnpm`'s
+`postbuild` script). Only `nz` and `uruguay` among the dormant set have
+Astro page templates (`src/pages/nz/index.astro`, `src/pages/uruguay/
+index.astro`) — the rest are pre-rendered HTML snapshots under
+`legacy/<slug>/`.
+
+**Rule of thumb:** if you are touching card markup, lightbox behaviour,
+nav, footer, or anything under `src/`, you are on the Astro surface and
+every convention below applies. If you are touching `scripts/build-<
+brazil|chile|geipan|uk>.py`, `scripts/build_batch3.py`, or the other
+`scripts/build-{api,cases,feeds,geo,og,pages-index,stories,sw}.py`
+files, you are on the legacy Python surface consumed by
+`.github/workflows/scrape.yml` (Phase 5 SCRP scope) — `scripts/verify-
+python-retired.sh` whitelists these files explicitly; **do not delete
+them**, and do not expect Astro's fidelity/Zod rules to apply there.
+
+---
+
+## 1. Design system — LOCKED (CLAUDE.md §3)
+
+These tokens and colours are **frozen**. Never introduce a new colour,
+font, or spacing scale outside this set. Any new archive gets ONE new
+row added to the tone-colour table below — nothing else changes.
+
+### 1.1 Tone colours (`--caution`) per archive
+
+Defined in exactly two places that MUST stay byte-identical:
+- `src/layouts/RootLayout.astro` — the `TONE` map (lines ~75-91)
+- `tests/tone-colours-fixture.json` — the CI fixture `tests/tone-
+  colours.spec.ts` asserts against via `getComputedStyle`
+
+```ts
+// src/layouts/RootLayout.astro
+const TONE: Record<ArchiveSlug, { caution: string; sealStart: string; sealMid: string; sealEnd: string }> = {
+  wargov:    { caution: '#d4a017', sealStart: '#b91c1c', sealMid: '#6b1010', sealEnd: '#2a0606' },
+  aaro:      { caution: '#4a9eff', sealStart: '#1e3a8a', sealMid: '#102560', sealEnd: '#061238' },
+  nasa:      { caution: '#fc3d21', sealStart: '#fc3d21', sealMid: '#a01818', sealEnd: '#400606' },
+  nara:      { caution: '#cbd5e1', sealStart: '#9ca3af', sealMid: '#4b5563', sealEnd: '#1f2937' },
+  // ...11 more dormant-archive entries, preserved verbatim for direct-URL rendering
+};
+```
+
+`--caution` is injected as an inline CSS custom property on `<html>` by
+`RootLayout.astro` (`style={rootStyle}`), NOT hard-coded per archive
+stylesheet:
+```ts
+const tone = TONE[archiveSlug] ?? TONE.wargov;
+const sealGradient = `radial-gradient(circle at center, ${tone.sealStart} 0%, ${tone.sealMid} 50%, ${tone.sealEnd} 100%)`;
+const rootStyle = `--caution: ${tone.caution}; --seal-gradient: ${sealGradient};`;
+```
+`src/styles/global.css` and every `src/styles/<slug>.css` file consume
+`var(--caution)` — never a literal hex value in component CSS. If
+`TONE[archiveSlug]` misses (typo, or a dormant slug arriving from
+loosely-typed JSON), the lookup falls back to `TONE.wargov` — **always
+defend with `?? TONE.wargov`, never let the lookup return `undefined`
+into a `style` string** (this is the T-03-11 tampering mitigation).
+
+### 1.2 Shared palette (`src/styles/global.css` `:root`)
+
+```css
+:root {
+  --bg:          #0a0a0c;
+  --bg-2:        #111114;
+  --panel:       #15151a;
+  --ink:         #e8e3d8;
+  --ink-dim:     #a8a298;
+  --ink-faint:   #6b665d;
+  --rule:        rgba(232, 227, 216, 0.12);
+  --rule-strong: rgba(232, 227, 216, 0.28);
+  --stamp:       #b91c1c;
+  --warm:        #d4a017;
+  --classified:  #c9362c;
+  --serif:       "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --mono:        "JetBrains Mono", "SF Mono", Consolas, ui-monospace, monospace;
+  --caution: var(--warm);        /* overridden per-archive by RootLayout inline style */
+  --seal-gradient: radial-gradient(circle at center, #b91c1c 0%, #6b1010 50%, #2a0606 100%);
+}
+```
+
+`src/styles/global.css:1` reads: `/* Shared design system per CLAUDE.md
+§3.2 — DO NOT EDIT without updating CLAUDE.md */`. Treat that literally
+— a PR that changes a hex value here without a corresponding CLAUDE.md
+§3.1/§3.2 edit is a drift bug, not a style tweak.
+
+### 1.3 Typography (CLAUDE.md §3.3)
+
+- Serif (`var(--serif)`) for prose, hero titles, card titles.
+- Mono (`var(--mono)`) for nav, metadata labels, badges, counters.
+- Body: `font-size: 16px` desktop (`src/styles/global.css:40`), `15px`
+  mobile via `@media (max-width: 720px) { html { font-size: 15px; } }`
+  (`src/styles/global.css:47-49`).
+- No third font. Fonts are self-hosted via `@fontsource/source-serif-4`
+  and `@fontsource/jetbrains-mono` npm packages, imported in
+  `src/layouts/BaseHead.astro` — **not** Google Fonts (that regressed
+  offline-first per Phase 4 SW-07: woff2 files now ship from
+  `dist/_astro/` and are precached by the service worker so fonts work
+  fully offline).
+
+### 1.4 Favicon (CLAUDE.md §3.4)
+
+One shared SVG at `/assets/favicon.svg`, referenced identically from
+`src/layouts/BaseHead.astro`:
+```astro
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+<link rel="apple-touch-icon" href="/assets/favicon.svg" />
+```
+Never add a per-archive favicon variant. Per-archive identity lives in
+the seal (`.seal` element in `src/components/Nav.astro`, coloured via
+`--seal-gradient`), not the favicon.
+
+---
+
+## 2. Astro component conventions
+
+### 2.1 No client-side hydration, ever
+
+Every `.astro` file in `src/components/` and `src/layouts/` carries a
+comment reiterating: **NO `client:*` directives, NO framework imports
+(React/Vue/Svelte)**. Interactivity ships as plain `<script is:inline>`
+blocks, either inline in the component (`src/components/Nav.astro`
+dropdown controller, `src/components/HeroCarousel.astro` autoplay) or
+via the shared `src/scripts/invariants.ts` string injected once at the
+bottom of `<body>` by `src/layouts/RootLayout.astro`:
+
+```astro
+<script is:inline set:html={INVARIANTS_JS}></script>
+```
+
+This is a **hard architectural constraint** (PROJECT.md: "pre-rendered
+cards, no hydration") enforced by the `js-off` CI gate — cards must
+render meaningfully with JavaScript disabled (see TESTING.md).
+
+### 2.2 `src/scripts/invariants.ts` is a string template, not runtime code
+
+`src/scripts/invariants.ts` exports `INVARIANTS_JS: string` built with a
+`String.raw` template literal containing **plain ES2020**, not
+TypeScript. The file is never imported as executable JS — Astro reads
+the string at build time and inlines it verbatim via `set:html`. Rules
+when editing it:
+- No TypeScript syntax inside the backticks (`as` casts, type
+  annotations) — they would ship to the browser and throw a parse
+  error that silently breaks every subsequent handler in the same
+  script block.
+- No literal backtick inside the template — it would close the outer
+  `String.raw` early (a real regression caught 2026-05-29, documented
+  inline at `src/scripts/invariants.ts:304-309`).
+- Every numbered behaviour block (1)-(8) maps 1:1 to a CLAUDE.md §7
+  invariant; if you add new behaviour, update CLAUDE.md §7 first, then
+  add a matching numbered comment here.
+
+### 2.3 Card markup is a cross-language contract
+
+`src/components/Card.astro` (wargov-only, CSV-keyed row shape) and
+`src/components/CatalogCard.astro` (generic, used by the 13 non-wargov
+archives with the abbreviated `catalogAssetSchema` shape) are **markup
+contracts**, not just components:
+
+- `Card.astro`'s compiled output must byte-match `scripts/normalize-
+  csv.py`'s `render_card_html()` Python function — same class names,
+  same attribute names, same attribute *order* — because the first 50
+  wargov rows render via Astro SSR while the remaining rows render via
+  Python-pre-rendered HTML strings fetched as lazy-loaded shards
+  (`data/wargov-shard-N.json`) and inserted with `insertAdjacentHTML`.
+  See `src/components/Card.astro:1-11`.
+- `CatalogCard.astro` is reused unchanged across 13 archive port plans
+  (04-06..04-18) — **never add archive-specific logic to this file.**
+  Archive-specific behaviour belongs in the per-archive page
+  (`src/pages/<slug>/index.astro`) or per-archive CSS
+  (`src/styles/<slug>.css`).
+
+Every card `<article>` carries this fixed `data-*` contract (both
+components emit identically-named attributes):
+
+```astro
+<article
+  class="arch-card"
+  id={`card-${slug}`}
+  data-id={rowId}
+  data-row-id={rowId}
+  data-idx={idx}
+  data-action="open"
+  data-type={rtype}
+  data-agency={agency}
+  data-date={date}
+  data-desc={desc}
+  data-region={region}
+  data-category={rtype}
+  data-src={source}
+  data-pagefind-filter={`archive:<slug>,type:${rtype},agency:${agency}`}
+  data-pagefind-meta={`title:${title},agency:${agency},date:${date}`}
+>
+```
+
+`rowId` is always `r` + 1-based index zero-padded to 3 digits
+(`r${String(idx + 1).padStart(3, '0')}` — `r001`, `r042`, `r222`). This
+is how the lightbox looks up which card is open (`openAt(rowId)` in
+`src/scripts/invariants.ts:242-264`) — **never switch this to a raw
+numeric index without updating the lightbox lookup.**
+
+### 2.4 Field aliasing — never read raw CSV/JSON keys past the frontmatter boundary
+
+Both card components destructure verbose source keys (`row['PDF |
+Image Link']`, `asset.ti`) into short local variables (`url`, `title`)
+at the top of the frontmatter, with `?? ''` defaults on every field:
+
+```ts
+const title = row.Title ?? '';
+const desc = row['Description Blurb'] ?? '';
+```
+
+Reasoning documented in `src/components/CatalogCard.astro:106-108`:
+Astro coerces `undefined` interpolated into an attribute to the literal
+string `"undefined"`, which corrupts the `data-*` contract silently.
+Always default falsy-but-required string fields to `''`.
+
+### 2.5 Never transform fidelity-sensitive text
+
+Per CLAUDE.md §9 + the fidelity CI gate (see TESTING.md), NO
+`.trim()`, `.replace()`, `.replaceAll()`, smartypants, or Unicode
+normalisation on any title/description/date field, in either Astro
+components or `src/content.config.ts` Zod schemas. `astro.config.mjs`
+explicitly disables markdown smartypants:
+
+```js
+markdown: {
+  smartypants: false,
+  remarkPlugins: [],
+  rehypePlugins: [],
+},
+```
+
+Astro's automatic `{expr}` HTML-escaping is the ONLY transform applied
+to card text — it is reversible (entity-encodes `&<>"'` only) and is
+the sole XSS mitigation (no manual escaping needed in `.astro` files;
+`html.escape(value, quote=True)` is the Python-side equivalent in
+`scripts/normalize-csv.py`).
+
+### 2.6 `is:global` styles — only for runtime-injected DOM
+
+`src/components/Lightbox.astro`'s `<style is:global>` block is
+required (not a stylistic choice) because `src/scripts/invariants.ts`
+injects lightbox content (`<iframe>`, `<dl>`, `<img>`, `<video>`) via
+`.innerHTML` at runtime — those elements never receive Astro's
+`data-astro-cid-*` scope attribute, so scoped CSS would never match
+them. Every selector in that global block is still prefixed with
+`.lightbox` or `.lb-*` to avoid leaking into unrelated DOM (documented
+at `src/components/Lightbox.astro:76-86`). Default to scoped `<style>`
+everywhere else; only reach for `is:global` when the DOM you're styling
+is injected outside Astro's render pass.
+
+### 2.7 `class:list` for conditional classes
+
+Astro's `class:list` directive is the house pattern for conditional
+class application — not template-string concatenation:
+
+```astro
+<a class:list={[a.slug === archiveSlug && 'active']}>{a.name}</a>
+```
+(`src/components/Nav.astro:135`)
+
+### 2.8 Props interfaces are always named and colocated
+
+Every component declares an `interface Props { ... }` immediately above
+`const { ... } = Astro.props;` in the frontmatter, with JSDoc-style
+`/** ... */` comments on non-obvious fields (see `src/components/
+Card.astro:30-57`, `src/components/CatalogCard.astro:61-98`). Do not
+inline anonymous prop types.
+
+### 2.9 Build-time invariant gates inside `.astro` frontmatter
+
+`src/components/Nav.astro:42-65` demonstrates the house pattern for
+data-integrity checks that must fail the *build*, not silently degrade
+at runtime: read the JSON at module scope, validate an invariant
+(featured-story count/order), and `throw new Error(...)` with a
+descriptive message if it fails:
+
+```ts
+if (!ok) {
+  throw new Error(
+    `[Nav.astro] Featured-story W-3 gate failed: expected 8 featured stories with unique order 1..8, got ${FEATURED_STORIES.length} entries with orders ${JSON.stringify(orders)}`,
+  );
+}
+```
+
+Prefer this over a runtime `console.warn` — Astro's static-site model
+means a bad build is cheap to catch and a bad deploy is expensive to
+fix.
+
+### 2.10 Type unions must stay on one line in `.astro` frontmatter
+
+`export type ArchiveSlug = 'wargov' | 'aaro' | ... ;` in `src/layouts/
+RootLayout.astro:31` and `export type PageType = 'archive' | 'story' |
+'site-page';` at line 41 are each forced onto a single line, with an
+explicit comment explaining why: `@astrojs/compiler 2.13.1` mis-compiles
+multi-line `export type` declarations in `.astro` frontmatter, splicing
+the `$$createComponent` block in between union members and producing an
+`Unexpected "|"` esbuild error. If you need to add a slug to
+`ArchiveSlug`, edit the single line — do not reformat it to multi-line
+for readability.
+
+---
+
+## 3. Content collection schema patterns (`src/content.config.ts`)
+
+- One `defineCollection` per archive slug (15 total, even though only 4
+  render pages) — `getCollection('wargov')`, `getCollection('aaro')`,
+  etc. Never introduce a monolithic union schema across archives.
+- Two schema shapes only:
+  - `catalogEnvelopeSchema` — the 14 non-wargov archives, abbreviated
+    keys (`t`, `ti`, `de`, `ag`, `cat`, `date`, `region`, `l`, `u`, `s`,
+    `th`) matching `scripts/templates/archive.py` output byte-for-byte.
+    `catalogAssetSchema` is `.strict()` — unknown fields are a build
+    error, not silently dropped (drift signal per D-02/SSG-02).
+  - `wargovEnvelopeSchema` — CSV-header-keyed shape with literal spaces
+    in keys (`'Release Date'`, `'PDF | Image Link'`) — never rename
+    these keys for ergonomics; the Phase 5 scrape pipeline reads the
+    same CSV headers verbatim.
+- **No `z.transform()` or `z.preprocess()` on any text field** — this is
+  the single most load-bearing rule in the file (see the "Fidelity
+  guard" docblock at `src/content.config.ts:16-24`). A transform here
+  is a fidelity bug even if it looks like an improvement (e.g. trimming
+  whitespace, normalising smart quotes).
+- Loader is always Astro 5's `file()` loader over `data/<slug>.json`,
+  entries-object form with a single `"v1"` key:
+  ```json
+  { "v1": { "schemaVersion": 1, "slug": "<slug>", "assets": [], "stats": {} } }
+  ```
+- `data/<slug>.json` files are **committed, never gitignored** — `pnpm
+  prebuild` (→ `python3 scripts/normalize-csv.py`) regenerates
+  `data/wargov.json` from `uap-data.csv` / `uap-release001.csv`, and the
+  per-archive `scripts/normalize-<slug>.py` scripts regenerate the rest.
+
+---
+
+## 4. JS invariants — CLAUDE.md §7 (source of truth: `src/scripts/invariants.ts`)
+
+Every behaviour below is numbered in the source file; keep the numbers
+in sync if you add a ninth invariant.
+
+1. **Hamburger toggle** — `#nav-toggle` ↔ `#primary-nav`. Guarded by
+   `navToggle.dataset.wired` so both `Nav.astro`'s own copy (component-
+   isolation contexts) and the global `invariants.ts` copy can run
+   without double-binding.
+2. **Unified lightbox** — `openAt(rowIdOrIdx)`, `navLb(delta)`,
+   `closeLb()`. Prefers stable `data-row-id` lookup over numeric index
+   (`lbList.findIndex(x => x.rowId === rowIdOrIdx)`), wraps via modulo.
+   Arrow keys (`←`/`→`), `Escape`, and touch swipe (> 50 px horizontal,
+   < 800 ms) all route through `navLb`/`closeLb`.
+3. **Image fallback** — `<img data-fallback="...">` swaps `src` on
+   `error` event (capture-phase delegated listener, `WeakSet`-guarded
+   against re-firing). Astro components emit `onerror="this.onerror=
+   null;this.src=this.dataset.fallback||''"` as belt-and-braces on top
+   of the delegated listener.
+4. **Video dual-source** — `<video>` gets TWO `<source>` children (local
+   + remote) whenever both exist. **Never add `crossorigin="anonymous"`
+   ** — it breaks CloudFront/R2 playback (CLAUDE.md §11 don't). A
+   runtime sanity pass in `invariants.ts` injects a missing second
+   `<source>` from `data-remote` if a page forgets the rule.
+5. **PDF lightbox** — iframe for local files AND R2-hosted PDFs
+   (`assets.realufo.org` — Phase 4 D-01 moved PDFs to R2, which is
+   iframable); true cross-origin remote PDFs (e.g. GitHub Release URLs
+   with `Content-Disposition: attachment`) open in a new tab instead.
+6. **Card open delegate** — `data-action="open"` on both the `<a
+   class="btn-open">` and the parent `<article>`; a single delegated
+   click listener intercepts `a[data-action="open"]` first, falls back
+   to `article[data-action="open"]` for archives whose cards have no
+   thumbnail/anchor (PDF/VID-only cards). Button clicks
+   (`.btn-download`, `.btn-source`, `.btn-open`) are excluded from the
+   article-level delegate so they keep native anchor behaviour.
+7. **`/` focuses search** — global `keydown` listener; bails if the
+   user is already typing in an `input`/`textarea`/`contenteditable`.
+   Selector union: `input[type="search"], input[name="q"], #q,
+   #arch-search`.
+8. **`?q=` persistence** — on load, reads `?q=` and populates + fires an
+   `input` event on the matched search field; on `input`, debounces
+   180 ms then `history.replaceState`s the encoded query into the URL.
+   No-ops gracefully when no search input exists on the page (e.g.
+   wargov, which has no cross-archive search input by design).
+
+A ninth, undocumented-in-CLAUDE.md-but-load-bearing behaviour lives in
+the same file: the **arch-controls-bar scroll-direction reveal**
+(`src/scripts/invariants.ts:509-566`) — hides the sticky filter bar on
+scroll-down, shows it on scroll-up, gated on the `.arch-grid` element
+existing and the lightbox being closed.
+
+---
+
+## 5. Mobile-first specifics — CLAUDE.md §8
+
+- **360 px is the canonical first viewport.** Every layout rule in
+  `src/styles/global.css` is written mobile-first (base rule = mobile;
+  `@media (min-width: 720px)` widens, not the inverse) — see
+  `src/styles/global.css:371` for the one `min-width` breakpoint vs. the
+  many `max-width: 720px` narrowing rules.
+- **Hamburger below 720 px**, inline nav above. Breakpoint constant
+  appears as `(max-width: 719.98px)` in `src/components/Nav.astro:259`
+  and `src/styles/global.css:330` — use `719.98px`, not `720px`, to
+  avoid a 1px double-match with the `min-width: 720px` rule.
+- **44×44 px touch targets** — grep `src/styles/global.css` for `/*
+  CLAUDE.md §8 — 44px touch target */` comments (11 call sites as of
+  this analysis: nav links via `padding: 12px 0`, lightbox nav buttons,
+  carousel arrows, filter controls). Any new interactive element needs
+  either `min-height: 44px` + `min-width: 44px` or padding that achieves
+  the same rendered hit area.
+- **Lightbox nav buttons**: 52×52 desktop, 40×40 mobile
+  (`@media (max-width: 720px)` in `src/components/Lightbox.astro:311-
+  319`), edge-pinned via `left/right: 8px`.
+- **`overflow-wrap: anywhere`** on long titles — `src/components/
+  Lightbox.astro:237` (`.lb-meta-panel dd`), applied anywhere a title or
+  free-text field could overflow its container.
+- **`body { overflow-x: hidden; }`** as the last-resort guard rail
+  (`src/styles/global.css:42`) — never remove this even if a specific
+  overflow bug gets fixed at the source; it's defence-in-depth.
+- **Tab strips wrap, never horizontal-scroll.** No `.arch-controls-bar`
+  or `.tabs` rule anywhere uses `overflow-x: auto` / `overflow-x:
+  scroll` — verify this holds before adding a new filter UI.
+
+---
+
+## 6. Content rules — CLAUDE.md §9
+
+- **No filler descriptions.** `{desc && <p class="card-desc">{desc}
+  </p>}` — the paragraph is omitted entirely when `desc` is empty
+  (`src/components/Card.astro:132`, `src/components/
+  CatalogCard.astro:155`). Never substitute a placeholder string like
+  "Click to play" or "View file". The same rule governs the lightbox
+  meta panel (`renderMeta()` in `src/scripts/invariants.ts:98-111` only
+  emits a `<p>` when `a.desc` is truthy) and `.lb-meta-panel:empty {
+  display: none; }` (`src/components/Lightbox.astro:202-204`).
+- **Verbatim official text** for hero ledes, sub-heads, FAQ answers,
+  license footers. This is CI-enforced — see `scripts/verify-
+  fidelity.py` in TESTING.md. Never run text through `.strip()` beyond
+  leading/trailing whitespace, never fold smart quotes, never
+  re-encode.
+- **Public-domain attribution per jurisdiction** — `src/components/
+  Footer.astro`'s `LICENSE` map is the single source (15-wide, though
+  only the US-jurisdiction 4 active archives surface): all of `wargov`,
+  `aaro`, `nasa`, `nara` share `'17 U.S.C. § 105'`. Every string in that
+  map is a direct copy from CLAUDE.md §9 — do not paraphrase when
+  adding a new archive's license string.
+- **Header vs footer `↗` rule (ties into §11 below):** internal
+  archive-to-archive links in `Nav.astro` never carry `↗`; external
+  official-source links in `Footer.astro`'s Source column always do
+  (`{primarySource.name} ↗`). `src/components/Nav.astro:18-22`
+  documents the distinction explicitly, including the one exception —
+  the internal "All stories →" uses a different glyph (U+2192, single
+  right arrow) which is NOT the forbidden external marker (U+2197).
+
+---
+
+## 7. House-style don'ts — CLAUDE.md §11 (verified against current code)
+
+| Don't | Where it's enforced / verified |
+|---|---|
+| Inline `↗` inside header nav links | `src/components/Nav.astro` never emits `↗`; only `Footer.astro`'s Source column does |
+| "OFFLINE MIRROR" banner | Absent from `RootLayout.astro` / `Nav.astro` — removed by design |
+| `crossorigin="anonymous"` on `<video>` | Absent from `src/scripts/invariants.ts`'s video-render branch (kills CloudFront/R2 playback) |
+| Single-`<source>` `<video>` when both local + remote exist | Invariant (4) in `src/scripts/invariants.ts:182-192` always emits both when available, plus a runtime sanity-check pass |
+| Filler description sentences | `{desc && <p>}` guards throughout `Card.astro` / `CatalogCard.astro` / `renderMeta()` |
+| `gh release upload` from main without checking the previous upload finished | Operational rule — no code enforcement; respect manually |
+| Skipping mobile testing (360 px canonical) | `tests/visual-regression.spec.ts` VIEWPORTS array puts `[360, 800]` first |
+| Force-pushes to main | Operational rule — no code enforcement; respect manually |
+| Touching `uap-release001.csv` / `uap-data.csv` | `scripts/normalize-csv.py` opens both **read-only** and runs `_assert_csv_unchanged()` after every write, exiting 1 on any diff |
+| Calling archive pages "mirrors" in user-facing copy | `Footer.astro`'s About column says "archive", never "mirror" |
+
+---
+
+## 8. Naming patterns
+
+**Astro/TS files (`src/`):**
+- Components: `PascalCase.astro` (`Card.astro`, `CatalogCard.astro`,
+  `HeroCarousel.astro`, `StructuredData.astro`).
+- Layouts: `PascalCase.astro` under `src/layouts/`.
+- Pages: `kebab-case` or archive-slug directories mirroring the URL
+  (`src/pages/aaro/index.astro` → `/aaro/`, `src/pages/stories/
+  [slug].astro` → `/stories/<slug>/`).
+- Scripts (non-component logic): `camelCase.ts` under `src/scripts/`
+  (`invariants.ts`, `jsonldSchemas.ts`, `extractLegacyBody.ts`).
+- CSS: `<slug>.css` per archive under `src/styles/`, plus `global.css`
+  (shared) and `site-pages.css` / `stories.css` (cross-archive
+  informational pages).
+
+**Python scripts (`scripts/`):**
+- `normalize-<slug>.py` — CSV/JSON → content-collection JSON
+  normalisers (the Phase 3/4 SSG data pipeline; `normalize-csv.py` is
+  wargov's, `normalize-aaro.py` / `normalize-nara.py` / `normalize-
+  nasa.py` / `normalize-nz.py` / `normalize-uruguay.py` are per-archive).
+- `build-<slug>.py` — legacy dormant-archive builders, retired from the
+  active surface but preserved for `.github/workflows/scrape.yml`
+  (Phase 5 SCRP) — see `scripts/verify-python-retired.sh` for the exact
+  whitelist (`build-brazil.py`, `build-chile.py`, `build-geipan.py`,
+  `build-uk.py`, `build_batch3.py`, plus `build-{api,cases,feeds,geo,
+  og,pages-index,stories,sw}.py`).
+- `verify-*.py` / `verify-*.sh` — CI gate scripts (stdlib-only Python;
+  see TESTING.md).
+- `_archive_common.py`, `_mirror_shared.py`, `_release_manifest.py`,
+  `_site_template.py` — underscore-prefixed shared helper modules,
+  imported by the `build-*`/`normalize-*` scripts.
+- `dl-<slug>.sh` — per-archive idempotent downloader shell scripts.
+
+**Data attributes:** always `data-kebab-case` (`data-row-id`, `data-
+pagefind-filter`), never `data-camelCase` — matches HTML5 convention and
+keeps Astro's dataset access (`el.dataset.rowId`) predictable.
+
+**Row/card IDs:** `r` + 1-based zero-padded 3-digit index (`r001`..
+`r222` for wargov's 222 rows). Never introduce a second ID scheme for
+the same card set.
+
+---
+
+## 9. Comments and documentation style
+
+- Every non-trivial file opens with a block comment naming: (a) what
+  the file is, (b) which CLAUDE.md section or Decision ID (`D-NN`) it
+  implements, and (c) any cross-file contract it must stay in sync
+  with. See the top of `src/components/Card.astro`, `src/scripts/
+  invariants.ts`, `scripts/normalize-csv.py` for the pattern.
+- Inline comments cite the CLAUDE.md section number directly (`/*
+  CLAUDE.md §8 — 44px touch target */`) rather than paraphrasing the
+  rule — this makes `grep -rn "CLAUDE.md §"` a working audit tool across
+  the codebase.
+- Decision IDs (`D-12`, `D-27`, etc.) and Threat IDs (`T-03-11`) appear
+  throughout comments, referencing `.planning/phases/*/CONTEXT.md` and
+  `.planning/research/PITFALLS.md`. When editing code that carries one
+  of these tags, check whether the referenced decision doc needs a
+  matching update.
+- Python docstrings (module-level, triple-quoted) follow a fixed shape:
+  one-line summary, blank line, prose description, then `###`-headed
+  subsections (`Invariants`, `Threat mitigations`, `CLI`, `Exit codes`).
+  See `scripts/normalize-csv.py:1-108` and `scripts/verify-fidelity.py:
+  1-48` as reference templates for any new verification/build script.
+
+---
+
+## 10. Error handling
+
+- **Astro build-time:** throw `Error` with a descriptive message from
+  frontmatter code when an invariant can't hold (`src/components/
+  Nav.astro:58-64`'s featured-story gate). Zod schema violations in
+  `src/content.config.ts` propagate as hard `ZodError` build failures
+  — no silent drop-on-validation-failure (D-03).
+- **Client-side JS (`invariants.ts`):** defensive `if (!el) return;`
+  guards before every DOM operation; `try { } catch (_) { /* ignore */
+  }` around browser APIs that may be unavailable (Fullscreen API,
+  `history.replaceState`) rather than feature-detection branches.
+- **Python scripts:** `argparse` + explicit exit codes documented in
+  each script's module docstring (0 = success, 1 = drift/violation, 2 =
+  missing input/fetch error) — never a bare `sys.exit(1)` without a
+  documented meaning. `verify-fidelity.py`, `verify-lighthouse-
+  budgets.py`, and `normalize-csv.py --check` all follow this 0/1/2
+  convention.
+- **Shell scripts:** `set -euo pipefail` (or `set -uo pipefail` when a
+  script needs to continue past a failed `curl` to count failures, e.g.
+  `scripts/verify-redirects.sh:29`) at the top of every `.sh` file.
+
+---
+
+## 11. Module design / where to add new code
+
+- **New archive:** add one `TONE` entry (`RootLayout.astro`), one
+  `LICENSE` + `SOURCE_URLS` entry (`Footer.astro`), one `ARCHIVES`/
+  `BRAND` entry (`Nav.astro`) if activating it in the nav, one
+  `defineCollection` entry (`src/content.config.ts`), one `data/<slug>
+  .json`, and a `scripts/normalize-<slug>.py`. Re-use `CatalogCard.astro`
+  unmodified; write a new `src/pages/<slug>/index.astro` page.
+- **New page-level content type** (like Phase 04.1's Stories / Site
+  Pages): add a JSON data file under `src/data/`, a Zod-free plain
+  import (not a content collection — `src/data/stories.json` and
+  `src/data/site-pages.json` are consumed as raw JSON imports, not
+  Astro content collections), and wire `pageType` through
+  `RootLayout.astro` if the new content needs to bypass the
+  active/dormant Pagefind gate.
+- **New shared UI behaviour:** add to `src/scripts/invariants.ts` as a
+  new numbered block, document it in CLAUDE.md §7 first.
+- **New CI verification:** stdlib-only Python (`argparse`, `json`,
+  `pathlib`, `re`, `sys`) matching the `verify-*.py` convention, OR a
+  new Playwright spec under `tests/*.spec.ts` matching the existing
+  `test.describe.parallel(...)` + independent-test-per-assertion
+  pattern (see TESTING.md).
+
+---
+
+*Convention analysis: 2026-07-11*

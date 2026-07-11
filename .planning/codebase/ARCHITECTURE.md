@@ -1,370 +1,271 @@
-<!-- refreshed: 2026-05-25 -->
+<!-- refreshed: 2026-07-11 -->
 # Architecture
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-07-11
+
+**Stale-doc warning:** the previous version of this file (2026-05-25) predates
+the SSG migration (Phase 3-4), the 2026-05-28 scope pivot (4 active / 11
+dormant archives), the Phase 04.1 legacy reorg (`legacy/` directory), and the
+Release-03 work. This is a full rewrite verified against `src/`, `scripts/`,
+`legacy/`, `astro.config.mjs`, `src/content.config.ts`, and git history.
 
 ## System Overview
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                       OFFICIAL GOVERNMENT SOURCES                       │
-│  war.gov · aaro.mil · science.nasa.gov · catalog.archives.gov           │
-│  cnes-geipan.fr · nationalarchives.gov.uk · fab.mil.br · sefaa.cl …     │
-└──────────┬────────────────────────────────────────────────┬────────────┘
-           │ Wayback fallback                                │
-           ▼                                                 ▼
-┌──────────────────────────────────┐   ┌──────────────────────────────────┐
-│   DOWNLOADERS (per archive)      │   │   SCRAPERS / SPIDER              │
-│   `scripts/dl-<slug>.sh`         │   │   `scripts/scrape-<slug>.py`     │
-│   curl + Akamai-aware UA         │   │   `scripts/spider.py` (generic)  │
-│   idempotent cache-then-fetch    │   │   `scripts/harvest-tna.py`       │
-└──────────┬───────────────────────┘   └──────────┬───────────────────────┘
-           │                                       │
-           ▼                                       ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       LOCAL ASSET CACHE (on disk)                       │
-│   `bundles/Release_1/*.pdf`     `aaro/pdfs/*.pdf`   `aaro/videos/*.mp4` │
-│   `slideshow/*.jpg`             `<slug>/pdfs/*`     `<slug>/.cache/`    │
-│   `uap-data.csv` (war.gov · source of truth)                            │
-│   `aaro/.cache/parsed.json` + `evidence.json` (intermediates)           │
-└──────────┬─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       PARSE / NORMALIZE STAGE                           │
-│   `scripts/parse-aaro.py`     → aaro/.cache/parsed.json                 │
-│   `scripts/extract-evidence.py` → aaro/.cache/evidence.json             │
-│   `scripts/_release_manifest.py` rewrites URLs to GH-release downloads  │
-└──────────┬─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       BUILD STAGE  (Python, stdlib only)                │
-│   `scripts/build-wargov.py`   → root `index.html` (splice-only)         │
-│   `scripts/build-aaro.py`     → `aaro/index.html`                       │
-│   `scripts/build-nasa.py`     → `nasa/index.html`                       │
-│   `scripts/build-nara.py`     → `nara/index.html`                       │
-│   `scripts/build-geipan.py`   → `geipan/index.html`                     │
-│   `scripts/build-uk.py`       → `uk/index.html`                         │
-│   `scripts/build-brazil.py`   → `brazil/index.html`                     │
-│   `scripts/build-chile.py`    → `chile/index.html`                      │
-│   `scripts/build_batch3.py`   → 7 mirrors (nz, canada, argentina, …)    │
-│   `scripts/build-cases.py`    → case-detail HTML from `_cases.json`     │
-│   `scripts/build-stories.py`  → story.html from `_stories.json`         │
-│   `scripts/build-details.py`  → `aaro/details.html` long-form           │
-│                                                                         │
-│   Shared template surface:  `scripts/_site_template.py`                 │
-│     re-exports from `scripts/templates/`:                               │
-│       nav.py (PINNED / SITE_PAGES / MORE / STORIES · make_nav)          │
-│       footer.py (make_footer, make_footer_sources)                      │
-│       head.py (make_head — <head>+<style> opening)                      │
-│       shared.py (SHARED_CSS · SHARED_JS · EXTRA_CSS)                    │
-│       lightbox.py (LIGHTBOX_HTML · LIGHTBOX_CSS · LIGHTBOX_JS)          │
-│       archive.py (ARCHIVE_JS — card-render + filter UI driver)          │
-│       i18n.py (I18N dict · 6 langs)                                     │
-│   Catalog-style mirrors import `scripts/_mirror_shared.py`              │
-│     (SHARED_JS + ARCHIVE_JS appended)                                   │
-└──────────┬─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                    SELF-CONTAINED STATIC HTML PAGES                     │
-│   Each `<slug>/index.html` has:                                         │
-│     • Full inline CSS (no external stylesheet)                          │
-│     • Full inline JS  (no external script bundle; vendor only for       │
-│       lunr/leaflet/hotkeys on root utility pages)                       │
-│     • Embedded JSON manifest:                                           │
-│         <script id="arch-data" type="application/json">…</script>       │
-│         (root index.html uses id="archive-manifest")                    │
-└──────────┬─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│              POST-BUILD DERIVATIVE INDEXES (read every arch-data)       │
-│   `scripts/build-api.py`         → `api/all.json` · by-archive · stats  │
-│   `scripts/build-pages-index.py` → `api/pages-index.json` (case prose)  │
-│   `scripts/build-geo.py`         → `api/geo.json` (map pins)            │
-│   `scripts/build-feeds.py`       → `feeds/<slug>.xml` · `feeds/all.xml` │
-│   `scripts/build-og.py`          → `<slug>/assets/og.svg` social cards  │
-│   `scripts/build-sw.py`          → version-stamps `sw.js`               │
-└──────────┬─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       OFFLINE-FIRST RUNTIME                             │
-│   `sw.js` (root)                                                        │
-│     · Precache: app shell (root, search, timeline, map, utility pages,  │
-│       favicon, leaflet vendor, manifest.webmanifest)                    │
-│     · Navigations  → network-first, cache 2xx only, fall back to /404   │
-│     · JSON (*.json) → stale-while-revalidate (DATA_CACHE)               │
-│     · Images/fonts → cache-first (IMG_CACHE)                            │
-│     · Versioned cache names invalidate on each deploy                   │
-└────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          BUILD-TIME (Astro 5, `pnpm build`)                │
+├─────────────────────────────┬───────────────────────────────────────────── │
+│  prebuild                   │  astro build                                 │
+│  `scripts/normalize-csv.py` │  reads `src/pages/**` + Content Collections  │
+│  CSV → `data/wargov*.json`  │  renders 4 ACTIVE archives + stories +       │
+│                             │  site-pages + search shell → `dist/`         │
+├─────────────────────────────┴───────────────────────────────────────────── │
+│  postbuild `scripts/copy-legacy-archives.sh`                               │
+│  copies 11 DORMANT archives + 5 partial-port sub-page sets (git-tracked   │
+│  HTML under `legacy/`) into `dist/`, then runs Pagefind indexing,          │
+│  sitemap.xml, manifest.webmanifest fallback                               │
+└───────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│                    dist/  (deployed to Cloudflare Pages)                   │
+│  4 Astro-rendered pages (/, /aaro/, /nasa/, /nara/) + 2 dormant Astro     │
+│  pages (/nz/, /uruguay/) + 9 dormant + partial-port legacy HTML trees +   │
+│  /stories/*, /search/, /about/, /foia/, /glossary/, /map/, /timeline/,    │
+│  /whatsnew/ + pagefind/ index + sw.js + data/*.json shard mirrors         │
+└───────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│               RUNTIME (browser) — zero client:* hydration                  │
+│  `src/scripts/invariants.ts` (is:inline, injected by RootLayout) wires:   │
+│  hamburger nav, lightbox, `/`-focuses-search, `?q=` persistence, wargov   │
+│  shard fetch+insertAdjacentHTML (see Data Flow §2)                        │
+│  `sw.js` (Workbox, injectManifest) — 5-tier runtime cache strategy        │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Component Responsibilities
 
 | Component | Responsibility | File |
 |-----------|----------------|------|
-| War.gov landing | Largest archive, R01+R02 manifest splice | `index.html` + `scripts/build-wargov.py` |
-| AARO archive | Evidence-first; videos + case-resolution PDFs | `aaro/index.html` + `scripts/build-aaro.py` |
-| Per-archive build script | Generates ONE self-contained HTML page | `scripts/build-<slug>.py` |
-| Per-archive downloader | Idempotent fetch with Wayback fallback | `scripts/dl-<slug>.sh` |
-| Multi-archive batch builder | 7 small mirrors (nz/canada/arg/uy/peru/spain/italy) | `scripts/build_batch3.py` |
-| Cross-archive search | Lunr-powered runtime search over all manifests | `search.html` |
-| Map viewer | Leaflet renderer of `api/geo.json` | `map.html` + `api/geo.json` |
-| Service worker | Offline shell + runtime caching | `sw.js` (root only) |
-| Nav single source | Canonical nav HTML, sync'd into every page | `scripts/templates/nav.py` + `scripts/sync-nav.py` |
-| Footer single source | Canonical footer HTML, sync'd into every page | `scripts/templates/footer.py` + `scripts/sync-footer.py` |
-| Shared CSS/JS template | SHARED_CSS, SHARED_JS, lightbox, i18n | `scripts/templates/shared.py` + `lightbox.py` + `i18n.py` |
-| Release-URL rewriter | Maps basenames → GH-release download URLs | `scripts/_release_manifest.py` + `release-manifest.json` |
-| Asset normalizer (AARO) | Two-stage parse: HTML → parsed.json → evidence.json | `scripts/parse-aaro.py` + `scripts/extract-evidence.py` |
-| Generic spider | Config-driven BFS crawler for catalog sources | `scripts/spider.py` |
-| API baker | Flat cross-archive JSON dump | `scripts/build-api.py` |
-| Feeds baker | Atom 1.0 per-archive + combined | `scripts/build-feeds.py` |
-| Pages index baker | Case-page prose for full-text search | `scripts/build-pages-index.py` |
-| Geo baker | Lat/lon per case for `/map.html` | `scripts/build-geo.py` |
-| OG card baker | Per-archive 1200×630 social SVG | `scripts/build-og.py` |
-| SW version stamp | Replaces `const VERSION` with commit short SHA | `scripts/build-sw.py` |
-| Master orchestrator | Interactive picker + per-archive driver | `scripts/sync.sh` |
+| `RootLayout` | Composes `<head>` + Nav + `<main>` + Footer + invariants script; owns the 15-archive `TONE` map, the `ACTIVE_ARCHIVES` set, and the Pagefind `data-pagefind-body`/`data-pagefind-ignore` gate | `src/layouts/RootLayout.astro` |
+| `BaseHead` | `<head>` shared across every page: meta/OG tags, favicon, self-hosted fonts, SW registration script, Umami analytics, `head-extra` slot | `src/layouts/BaseHead.astro` |
+| `Nav` | Sticky 64 px header: seal + brand, hamburger, 4-archive cross-nav, Stories ▾ / About ▾ dropdowns (JS-driven single-open controller) | `src/components/Nav.astro` |
+| `Footer` | Source list (official URLs), per-jurisdiction license string, Pages column, Stories column, Archives column (4 active only), colophon | `src/components/Footer.astro` |
+| `Card` | wargov-specific card renderer — the first 50 rows server-render via this component; the HTML string it emits must byte-match `render_card_html()` in `scripts/normalize-csv.py` (D-10 locked pair) | `src/components/Card.astro` |
+| `CatalogCard` | Generic card renderer over `catalogAssetSchema` — shared by AARO/NASA/NARA/NZ/Uruguay (and any future catalog-style archive) | `src/components/CatalogCard.astro` |
+| `HeroCarousel` | 16:9 autoplay carousel, ≥4 slides, dots/arrows/caption per CLAUDE.md §4 | `src/components/HeroCarousel.astro` |
+| `Lightbox` | Static modal shell; open/close/nav/swipe wired by `invariants.ts`, not component-local JS | `src/components/Lightbox.astro` |
+| `StructuredData` | JSON-LD helper component (schema.org) | `src/components/StructuredData.astro` |
+| `extractLegacyBody` | Build-time-only HTML extractor + chrome-scrubber that turns a `legacy/*.html` file into a verbatim `<article>` body slice for Astro pages | `src/scripts/extractLegacyBody.ts` |
+| `invariants.ts` | Source-of-truth for the CLAUDE.md §7 JS invariants, injected verbatim via `is:inline` + `set:html` from `RootLayout.astro` | `src/scripts/invariants.ts` |
+| `content.config.ts` | Zod schema + `file()` loader registry for all 15 archive Content Collections | `src/content.config.ts` |
+| `sw.ts` | Workbox `injectManifest` service-worker source — compiled to `dist/sw.js` at build time | `src/sw.ts` |
 
 ## Pattern Overview
 
-**Overall:** Static-site generator with **per-archive isolation but shared build templates**.
-
-Each archive folder is a self-contained, fully-static HTML+CSS+JS package — no shared CSS or JS files are referenced at runtime by archive pages. Instead, sharing happens at *build time*: every `build-<slug>.py` imports from `scripts/_site_template.py` (which re-exports the modular `scripts/templates/` package) and **inlines** the shared CSS/JS/HTML strings into each page during generation.
+**Overall:** Static-site generation (Astro 5, `output: 'static'`) with a
+**two-tier content model**: 4 "ACTIVE" archives fully ported to Astro +
+Content Collections, and 11 "DORMANT" archives shipped as git-tracked,
+pre-rendered legacy HTML via a bash postbuild step. No SSR, no islands, no
+`client:*` hydration anywhere — every interactive behaviour is a hand-rolled
+`is:inline` script shared via `RootLayout.astro`.
 
 **Key Characteristics:**
-- Pure static-HTML output — zero JS framework, zero build tooling (no webpack / vite / npm). Python stdlib only on the build side.
-- Per-page data lives in an inline `<script id="arch-data" type="application/json">…</script>` block, parsed at runtime by inlined `ARCHIVE_JS`.
-- Cross-cutting concerns (nav, footer, CSS variables, lightbox, i18n) are **single-source-of-truth Python modules** that get sprayed into every page at build, then *kept* canonical by CI drift gates (`sync-nav.yml`, `sync-footer.yml`).
-- Offline-first is non-negotiable: every per-archive page works without network. The root-level `sw.js` precaches the app shell and applies network-first / stale-while-revalidate / cache-first policies by response type.
-- Idempotency is a hard rule: every downloader, parser, builder, and `sync.sh` is safe to re-run.
+- **Content Collections over CMS.** Every one of the 15 archives has a Zod-validated collection (`src/content.config.ts`) reading `data/<slug>.json`, even though only 6 archives (wargov, aaro, nasa, nara, nz, uruguay) currently have Astro pages that consume them.
+- **Fidelity-over-ergonomics schema design.** Field names in `catalogAssetSchema` (`ti`, `de`, `ag`, `l`, `u`, `s`, `th`) and `wargovRowSchema` (literal CSV header strings with spaces, e.g. `'Release Date'`) are chosen to byte-match the upstream Python normaliser output, NOT idiomatic naming. `smartypants: false` + zero markdown plugins in `astro.config.mjs` exist purely to protect this fidelity guarantee.
+- **Build-time HTML extraction, not a CMS migration.** `/stories/{slug}/` and the 6 site-pages (`/about/`, `/foia/`, `/glossary/`, `/map/`, `/timeline/`, `/whatsnew/`) do NOT have hand-authored Astro markup for their body content — they read a raw `legacy/*.html` file at build time via `fs.readFileSync`, run it through a regex-based "cascade selector" (`extractMain`), strip chrome (`scrubChrome`), and `set:html` the result into an Astro-owned wrapper.
+- **Selective Pagefind indexing via a body-marker gate.** Pagefind indexes a page only if *some* page on the site carries `data-pagefind-body` (per Pagefind's own semantics) — `RootLayout.astro`'s `pageType` prop (`'archive' | 'story' | 'site-page'`) decides whether a given `<main>` gets the marker (active archives + all stories + all site-pages) or the inverse `data-pagefind-ignore` (dormant archive pages).
+- **Server-rendered-then-lazy-shard hybrid for large catalogs.** wargov (294 records) server-renders the first 50 rows as real HTML (`Card.astro`), then ships the remaining rows as pre-rendered HTML-string shards (`data/wargov-shard-N.json`, mirrored into `public/data/` so they're fetchable at `/data/wargov-shard-N.json`); a client script fetches all shards up front and does `insertAdjacentHTML` — zero client-side templating (D-10 LOCKED invariant).
 
 ## Layers
 
-**Source layer (external):**
-- Purpose: Official government archives — the legal source of truth.
-- Location: 15 sites listed in `CLAUDE.md` §2.
-- Contains: HTML pages, scanned PDFs, DVIDS videos, image galleries.
-- Used by: downloaders and scrapers.
+**Presentation / Routing (`src/pages/`):**
+- Purpose: one Astro file per route. File-based routing — `src/pages/aaro/index.astro` → `/aaro/`, `src/pages/stories/[slug].astro` → `/stories/<slug>/` (dynamic via `getStaticPaths()`).
+- Location: `src/pages/`
+- Contains: `.astro` files only (no nested route logic outside this tree)
+- Depends on: `src/layouts/`, `src/components/`, `astro:content` (Content Collections), `src/scripts/extractLegacyBody.ts` for extraction-based routes
+- Used by: nothing (leaf layer — Astro's router)
 
-**Acquisition layer:**
-- Purpose: Pull official content to local disk with Wayback fallback.
-- Location: `scripts/dl-<slug>.sh` (per archive) and `scripts/scrape-<slug>.py` + `scripts/spider.py` for catalog crawls.
-- Contains: bash + curl + a realistic Chrome UA; Python urllib for spider; `harvest-tna.py` for UK catalog.
-- Depends on: `set -uo pipefail`; `curl_cffi` for Akamai-fronted war.gov; standard `curl`/`urllib` otherwise.
-- Used by: build scripts (via on-disk filesystem and `<slug>/.cache/`).
+**Layout (`src/layouts/`):**
+- Purpose: shared page shell (`RootLayout.astro`) and shared `<head>` (`BaseHead.astro`)
+- Location: `src/layouts/`
+- Depends on: `src/components/Nav.astro`, `src/components/Footer.astro`, `src/scripts/invariants.ts`
+- Used by: every page in `src/pages/`
 
-**Storage / cache layer:**
-- Purpose: Pinned local copy of all assets.
-- Location: `bundles/Release_1/` (war.gov R01 PDFs · gitignored), `bundles/release_02_document_bundle/` (R02 PDFs · gitignored), `bundles/uapvideos/` (R01 DVIDS · gitignored), `bundles/uap052226/` (R02 DVIDS · gitignored), `slideshow/` + `slideshow-2/` (war.gov R01/R02 imagery · tracked), `<slug>/pdfs/` (gitignored), `<slug>/videos/` (gitignored), `<slug>/assets/images/` (tracked).
-- Manifest sources: `uap-data.csv` (combined R01+R02 war.gov manifest), `uap-release001.csv` (legacy R01-only; do not touch), `<slug>/.cache/*.json` (parser intermediates).
+**Components (`src/components/`):**
+- Purpose: reusable render units — cards, carousel, lightbox, nav, footer, JSON-LD helper
+- Location: `src/components/`
+- Depends on: `src/layouts/RootLayout.astro` for the shared `ArchiveSlug` type
+- Used by: `src/pages/**`
 
-**Transform layer (parse / normalize):**
-- Purpose: Convert raw HTML snapshots into structured JSON.
-- Location: `scripts/parse-aaro.py` → `aaro/.cache/parsed.json`; `scripts/extract-evidence.py` → `aaro/.cache/evidence.json`; `scripts/_release_manifest.py` mutates asset URLs in place.
-- Used by: every `build-<slug>.py`.
+**Content Collections (`src/content.config.ts` + `data/*.json`):**
+- Purpose: typed, Zod-validated data source for every archive, decoupled from how each archive's page ultimately renders it
+- Location: `src/content.config.ts` (schema/registry), `data/<slug>.json` (payload)
+- Contains: two schema shapes — `wargovEnvelopeSchema` (CSV-keyed, wargov only) and `catalogEnvelopeSchema` (14 other archives, abbreviated Python-parity field names)
+- Depends on: `astro/loaders` `file()` loader
+- Used by: `getEntry('<slug>', 'v1')` in `src/pages/index.astro`, `src/pages/aaro/index.astro`, `src/pages/nasa/index.astro`, `src/pages/nara/index.astro`, `src/pages/nz/index.astro`, `src/pages/uruguay/index.astro`
 
-**Build / template layer:**
-- Purpose: Generate self-contained HTML pages.
-- Location: `scripts/build-*.py` + `scripts/_site_template.py` (compat shim) + `scripts/templates/` (canonical modules).
-- Output: one `<slug>/index.html` per archive (plus root `index.html`, story / case pages, `details.html`).
-- Depends on: git-tracking detection (`git ls-files`) to decide LOCAL vs SOURCE badges; `release-manifest.json` to rewrite primary URLs to GH-release download links.
+**Legacy static HTML (`legacy/`):**
+- Purpose: the pre-Astro archive corpus — 9 dormant archives shipped wholesale, 5 partial-port archives' sub-pages (case narratives, per-archive `/pages/*` sections), root-level informational pages, all git-tracked
+- Location: `legacy/`
+- Depends on: nothing (self-contained HTML/CSS/JS files, no build step)
+- Used by: `scripts/copy-legacy-archives.sh` (wholesale file copy into `dist/`), `src/scripts/extractLegacyBody.ts` (build-time body extraction for `/stories/*` and the 6 site-pages)
 
-**Output layer (static HTML):**
-- Purpose: The deployed site.
-- Location: `*.html` at root + `<slug>/index.html` per archive + case/story HTML files.
-- Contains: inlined CSS, inlined JS, inline JSON manifest, embedded i18n dict.
-
-**Derivative-index layer:**
-- Purpose: Cross-archive APIs and feeds derived from the inline manifests.
-- Location: `api/all.json`, `api/by-archive.json`, `api/stats.json`, `api/geo.json`, `api/pages-index.json`, `feeds/<slug>.xml`, `feeds/all.xml`, `<slug>/assets/og.svg`, version-stamped `sw.js`.
-
-**Runtime / offline layer:**
-- Purpose: Make every page work offline, cache shell, never serve stale 404s.
-- Location: `sw.js` (root), registration shim in `<head>` of every page (`navigator.serviceWorker.register('/sw.js')`).
-- Vendor JS (root utility pages only): `assets/vendor/leaflet/`, `assets/vendor/lunr/`, `assets/vendor/hotkeys.js`, `assets/vendor/citation.js`, `assets/vendor/share.js`, `assets/vendor/related-media.js`.
+**Build scripts (`scripts/`):**
+- Purpose: everything that runs OUTSIDE `astro build` — CSV/JSON normalisation (`pnpm prebuild`), legacy-HTML shipping + Pagefind indexing + sitemap (`pnpm postbuild`), scrape automation (Phase 5 scope), verification/CI gates
+- Location: `scripts/`
+- Depends on: `data/`, `legacy/`, `dist/` (postbuild only)
+- Used by: `package.json` `prebuild`/`postbuild` hooks, `.github/workflows/*.yml`
 
 ## Data Flow
 
-### Primary Build Path (per archive)
+### Primary Request Path — wargov (`/`)
 
-1. `scripts/dl-<slug>.sh` writes raw HTML / PDFs / videos under `<slug>/` and `bundles/` (idempotent; cache-then-fetch with Wayback fallback). (`scripts/dl-aaro.sh`)
-2. `scripts/scrape-<slug>.py` or `scripts/spider.py` may parse the downloaded HTML into `<slug>/.cache/*.json`. (`scripts/parse-aaro.py:1`, `scripts/extract-evidence.py:1`)
-3. `scripts/build-<slug>.py` imports `make_nav`, `LIGHTBOX_HTML`, `SHARED_CSS`, `SHARED_JS` from `_site_template`. (`scripts/build-aaro.py:11`, `scripts/build-nasa.py:10`, `scripts/build-uk.py:14-16`)
-4. The builder enumerates local files via `git ls-files <slug>/<dir>/` so the LOCAL badge reflects what GitHub Pages will actually serve. (`scripts/build-aaro.py:31-44`, `scripts/build-nasa.py:16-26`)
-5. `apply_manifest()` (from `scripts/_release_manifest.py`) rewrites primary URLs to GH-release download links when basenames match `release-manifest.json`. (`scripts/_release_manifest.py:29-54`)
-6. The builder assembles the final HTML by string-templating into a single inline document: shared CSS replaces `__LIGHTBOX_CSS__`, shared JS replaces `__I18N_JSON__`, then the inline `<script id="arch-data">` JSON blob is dumped.
-7. The output file is written atomically to `<slug>/index.html`.
+1. `pnpm prebuild` runs `scripts/normalize-csv.py`, which reads `uap-data.csv` (fallback `uap-release001.csv`) and writes `data/wargov.json` (first 50 rows + shard manifest) plus `data/wargov-shard-N.json` (pre-rendered `<article>` HTML strings, 50/shard) — mirrored into `public/data/` for client fetch (`scripts/normalize-csv.py` ~line 829).
+2. `astro build` loads `data/wargov.json` through the `wargov` Content Collection (`src/content.config.ts` → `file('data/wargov.json')`), Zod-validates it against `wargovEnvelopeSchema`.
+3. `src/pages/index.astro` calls `getEntry('wargov', 'v1')`, server-renders the first 50 rows via `Card.astro`, and emits the shard manifest as an inline `<script id="wargov-shards" set:html={JSON.stringify(shards)}>` (`src/pages/index.astro:372`).
+4. At runtime, an `is:inline` script in `index.astro` (~line 399+) reads `#wargov-shards`, `fetch()`s every `/data/wargov-shard-N.json` in parallel (served from `dist/data/` — the `public/data/` mirror), and does `insertAdjacentHTML('beforeend', card.html)` for each card — zero client-side templating (D-10 LOCKED).
+5. `pnpm postbuild` (`scripts/copy-legacy-archives.sh`) runs AFTER `astro build`: copies the 11 dormant + partial-port legacy trees into `dist/`, then invokes `pnpm exec pagefind --site dist` to build the search index over every page carrying `data-pagefind-body`.
 
-### Root War.gov Splice Path
+### Dormant-Archive Request Path (e.g. `/geipan/`)
 
-1. `scripts/build-wargov.py` reads `uap-data.csv` (or legacy `uap-release001.csv`). (`scripts/build-wargov.py:27-29`)
-2. Each row is enriched with `local` (basename → `bundles/Release_1/...` or `slideshow/...` if git-tracked) and rewritten URL (release URL when basename in `release-manifest.json`). (`scripts/build-wargov.py:143-170`)
-3. DVIDS Video IDs are resolved to playable DOD URLs via `scripts/dvids2dod-r01.json` + `scripts/dvids2dod-r02.json`. (`scripts/build-wargov.py:83-98`, `scripts/build-wargov.py:147-155`)
-4. The final manifest JSON is **spliced** into the existing `index.html` by regex-replacing the body of `<script id="archive-manifest">…</script>`. CSS / structure / JS in `index.html` are never touched by this script. (`scripts/build-wargov.py:188-199`)
+1. `legacy/geipan/index.html` (git-tracked, pre-Astro HTML with inline CSS/JS/manifest) exists on disk before any build step runs.
+2. `scripts/copy-legacy-archives.sh` enumerates `git ls-files "legacy/geipan/"`, strips the `legacy/` prefix, and copies each file to `dist/geipan/...` (skipping anything > 25 MiB, the CF Pages file-size cap).
+3. No Astro route owns `/geipan/` — the file lands in `dist/` purely via file copy. Astro's own build never sees it.
+4. The copied `<main>` in that legacy HTML lacks `data-pagefind-body`, so Pagefind (which runs after the copy step) skips it — dormant content stays out of search by construction.
 
-### Cross-archive Derivative Path
+### Curated Story / Site-Page Path (e.g. `/stories/tic-tac/`, `/about/`)
 
-1. `scripts/build-api.py` walks every `<slug>/index.html`, extracts the inline `arch-data` JSON, normalizes to a flat schema, and writes `api/all.json`, `api/by-archive.json`, `api/stats.json`. (`scripts/build-api.py:1-30`)
-2. `scripts/build-pages-index.py` parses case + story HTML for prose, emits `api/pages-index.json` consumed by `/search.html`. (`scripts/build-pages-index.py:1-30`)
-3. `scripts/build-geo.py` reads "◉ DD.DDDD° N · DD.DDDD° W" coord lines from case detail pages, falls back to per-archive HQ centroid, emits `api/geo.json` consumed by `/map.html`. (`scripts/build-geo.py:1-30`)
-4. `scripts/build-feeds.py` emits Atom 1.0 feeds under `feeds/<slug>.xml` + `feeds/all.xml`. (`scripts/build-feeds.py:1-30`)
-5. `scripts/build-sw.py` stamps `const VERSION` in `sw.js` with the current git short SHA + UTC date so a deploy invalidates user caches. (`scripts/build-sw.py:31-49`)
+1. `src/data/stories.json` (stories) or `src/data/site-pages.json` (site-pages) declares `{ slug, legacyPath, ... }` entries.
+2. At build time, `getStaticPaths()` (stories) or a direct top-of-file read (site-pages) calls `readFileSync(legacyPath)`, then `extractMain(raw, legacyPath)` (`src/scripts/extractLegacyBody.ts`) — a priority-ordered regex "cascade" that matches `<main>`, `<article>`, or a handful of per-file custom anchors (e.g. `legacy/map.html` has neither `<main>` nor `<article>`, so a `filePath`-guarded cascade entry anchors on `<section id="map">` instead). No anchor match ⇒ the build throws (no silent `<body>` fallback, by design — "B-3" invariant).
+3. `scrubChrome(anchor, opts)` strips `<style>`, `<link rel="stylesheet">`, `<script>` (unless `preserveScripts: true` for `map`/`timeline`/`whatsnew`/`glossary`), `<header>`, `<footer>`, the legacy scanlines div, inline `style=` attributes, and rewrites relative legacy URLs (`../aaro/tic-tac.html` → `/stories/tic-tac/`, `../about.html` → `/about/`, etc.) via `rewriteLegacyLinks()`.
+4. The scrubbed HTML is injected via `<article set:html={bodyHtml}>` inside an Astro-owned page that supplies its own `<h1>`, `RootLayout`, Nav, Footer. `pageType="story"` / `pageType="site-page"` forces `data-pagefind-body` regardless of the referenced archive's active/dormant status.
 
-### Page Render Path (client)
-
-1. Browser requests `<slug>/index.html`.
-2. Inline `<script>` registers `/sw.js` (root scope). (`index.html:27`, `search.html:26`, `timeline.html:22`)
-3. Inlined `SHARED_JS` runs: applies saved `localStorage.realufo_lang`, wires hamburger toggle, dropdown coordination, lightbox key/swipe handlers. (`scripts/templates/shared.py:249-434`)
-4. Inlined `ARCHIVE_JS` reads `<script id="arch-data">`, paints stats, tabs, search, and the card grid into `#arch-grid`. Bails out early if `#pagination` is present (host page provides its own paginator — GEIPAN). (`scripts/templates/archive.py:33-38`)
-5. Card click → `window._lb.open(idx)` → media renders in lightbox; arrow keys + swipe navigate.
-
-**State Management:**
-- No client-side state framework. Per-page JS uses module-scoped variables + DOM as state.
-- Persisted state: `localStorage.realufo_lang` (current i18n locale), search query in `?q=` URL param (cross-archive search only).
-- Server-side state: none. Site is purely static.
+**State Management:** none — every page is stateless HTML at request time. The
+only "state" is URL-driven (`?page=N` pagination param, `?q=` search-query
+persistence), read and written by `invariants.ts` / `search.astro`'s inline
+scripts, never a client-side store.
 
 ## Key Abstractions
 
-**Asset record (canonical short-form keys):**
-- Purpose: One row in the inline `arch-data` JSON.
-- Examples: every `<script id="arch-data">` block (e.g., `aaro/index.html`).
-- Shape: `{ t, ti, de, ag, cat, date, region, l, u, s, th }` — type, title, description, agency, category, date, region, local path, primary URL, source URL, thumbnail. Long-form keys `{type, title, desc, agency, category, date, region, local, url, src, thumb}` are also accepted by the lightbox renderer for backwards compat. (`scripts/templates/archive.py:24-26`)
+**`ArchiveSlug` literal union:**
+- Purpose: single source of truth for the 15 valid archive slugs; exported from `RootLayout.astro` (must stay on ONE LINE — `@astrojs/compiler 2.13.1` mis-compiles multi-line `export type` in `.astro` frontmatter) and re-imported by `Nav.astro`, `Footer.astro`, `src/pages/stories/[slug].astro`
+- Examples: `src/layouts/RootLayout.astro:31`
+- Pattern: TypeScript literal union + a companion `Record<ArchiveSlug, T>` lookup table (TONE, LICENSE, SOURCE_URLS, PATH) in each consumer, always with a `?? TONE.wargov` / `?? BRAND.wargov!` defensive fallback
 
-**Make-* template builders:**
-- `make_nav(current_slug, depth)` — returns `<nav>` HTML; sole source of nav across every page. (`scripts/templates/nav.py:165-235`)
-- `make_footer(variant, depth, meta)` — three variants: `minimal` / `mirror` / `root`. (`scripts/templates/footer.py:18-78`)
-- `make_footer_sources(source_links, license_text, colophon)` — multi-column source-list footer for mirror pages. (`scripts/templates/footer.py:81-119`)
-- `make_head(...)` — opens `<head>` through start of `<style>`; caller closes. (`scripts/templates/head.py:14-54`)
+**`pageType` discriminator:**
+- Purpose: decides Pagefind eligibility independent of archive active/dormant status
+- Examples: `src/layouts/RootLayout.astro:41` (`'archive' | 'story' | 'site-page'`)
+- Pattern: default `'archive'` preserves pre-Phase-04.1 behavior for every call site that omits the prop
 
-**SHARED_CSS / SHARED_JS / LIGHTBOX_***:
-- Module-level strings concatenated at import time. `SHARED_CSS` injects `__LIGHTBOX_CSS__` placeholder; `SHARED_JS` injects `__I18N_JSON__`. (`scripts/templates/shared.py:1-12`, `scripts/templates/shared.py:233-434`)
+**Catalog vs. wargov schema split:**
+- Purpose: wargov's CSV-native shape (`rows[]` keyed by literal spaced column names) cannot be unioned with the other 14 archives' abbreviated JSON shape (`assets[]` with `t`/`ti`/`de`/... fields) without a lossy transform, so `content.config.ts` deliberately keeps two schemas rather than one monolithic union
+- Examples: `src/content.config.ts` (`wargovEnvelopeSchema` vs `catalogEnvelopeSchema`)
+- Pattern: `.strict()` on the leaf asset schema (unknown fields = build error = drift signal), lenient envelope wrapper (forward-compatible top-level fields)
 
-**Release manifest (`release-manifest.json`):**
-- Basename → GH-release download URL map. Read by `apply_manifest()` to rewrite per-record `u:` URLs so deployed pages always have a working download link when the file lives in a release tag. (`scripts/_release_manifest.py:14-54`)
-
-**Git-tracking-aware local detection:**
-- Every builder uses `git ls-files <slug>/<dir>/` (not `os.listdir`) to decide LOCAL vs SOURCE badge. A file present on disk but gitignored stays routed through the source URL, so Download buttons never 404 on GitHub Pages. (`scripts/build-aaro.py:31-44`, `scripts/build-nasa.py:16-26`, `scripts/build-wargov.py:34-50`)
+**Legacy-HTML extraction cascade:**
+- Purpose: reuse verbatim official text from 89 pre-Astro legacy files without hand-transcribing content into Astro components
+- Examples: `src/scripts/extractLegacyBody.ts` `CASCADE` array
+- Pattern: priority-ordered regex matchers, `filePath`-guarded entries tried first (per-file overrides), unguarded generic entries (`<main>`, `<article>`) as fallback, hard `throw` if nothing matches (no silent `<body>` fallback)
 
 ## Entry Points
 
-**Master orchestrator:**
-- Location: `scripts/sync.sh`
-- Triggers: developer CLI; cron / launchd schedule.
-- Responsibilities: interactive multi-select picker → per-archive downloader → rebuild all HTML.
+**`src/pages/index.astro`:**
+- Location: `src/pages/index.astro` → `dist/index.html` (site root `/`)
+- Triggers: any request to `/`
+- Responsibilities: wargov (War.gov/PURSUE) archive — hero carousel, headlines, 50 server-rendered cards + lazy shard loader, stats grid, tabs/sort/search/filter/pagination UI, lightbox
 
-**Per-archive downloaders:**
-- Location: `scripts/dl-aaro.sh`, `scripts/dl-nasa.sh`, `scripts/dl-nara.sh`, `scripts/dl-geipan.sh`, `scripts/dl-uk.sh`, `scripts/dl-brazil.sh`, `scripts/dl-chile.sh`.
-- Triggers: `sync.sh` or invoked individually.
-- Responsibilities: idempotent download with Wayback fallback.
+**`src/pages/{aaro,nasa,nara}/index.astro`:**
+- Location: `src/pages/aaro/index.astro`, `src/pages/nasa/index.astro`, `src/pages/nara/index.astro`
+- Triggers: `/aaro/`, `/nasa/`, `/nara/`
+- Responsibilities: the other 3 ACTIVE archives; same `CatalogCard` + pagination + lightbox pattern, each with its own tone colour and legacy sub-page set preserved via `copy-legacy-archives.sh`'s partial-port block
 
-**Per-archive builders:**
-- Location: `scripts/build-aaro.py`, `scripts/build-nasa.py`, `scripts/build-nara.py`, `scripts/build-geipan.py`, `scripts/build-uk.py`, `scripts/build-brazil.py`, `scripts/build-chile.py`, `scripts/build_batch3.py` (covers 7 small mirrors), `scripts/build-wargov.py` (root splice).
-- Triggers: `sync.sh --no-videos`, manual `python3 scripts/build-<slug>.py`.
+**`src/pages/{nz,uruguay}/index.astro`:**
+- Location: `src/pages/nz/index.astro`, `src/pages/uruguay/index.astro`
+- Triggers: `/nz/`, `/uruguay/` (direct URL only — not linked from Nav/Footer post-scope-pivot)
+- Responsibilities: DORMANT archives that nonetheless got a full Astro port in Phase 4 (04-05/04-06) before the 2026-05-28 scope pivot removed them from the active nav/search surface; `RootLayout` marks their `<main>` `data-pagefind-ignore` via the `ACTIVE_ARCHIVES` set
 
-**Drift-gate CLIs:**
-- `scripts/sync-nav.py [--check]` — rewrites or verifies every page's `<nav>` block. (`scripts/sync-nav.py:1-30`)
-- `scripts/sync-footer.py [--check]` — same pattern for `<footer>`. (`scripts/sync-footer.py:1-25`)
-- `scripts/validate-manifests.py [--strict]` — schema-validates every inline manifest. (`scripts/validate-manifests.py:1-30`)
-- `scripts/check-sources.py` — HEAD-pings every external URL across all manifests, writes `dead-links.json` / `dead-links.md`. (`scripts/check-sources.py:1-30`)
+**`scripts/copy-legacy-archives.sh` (postbuild):**
+- Location: `scripts/copy-legacy-archives.sh`, invoked by `package.json`'s `postbuild` npm-lifecycle hook
+- Triggers: runs automatically after every `astro build` completes (via `pnpm build`)
+- Responsibilities: ships the 9 wholesale-dormant archives (geipan, uk, brazil, chile, argentina, canada, italy, peru, spain) + 5 partial-port sub-page sets (nz, uruguay, nasa, nara, aaro) + shared `assets/`/`slideshow*/` + `api/`/`feeds/` JSON into `dist/`; then runs Pagefind indexing, `build-dir-index.py`, `rewrite-dist-legacy-links.py`, `build-sitemap.py`, and writes a `manifest.webmanifest` fallback if the PWA plugin didn't emit one
 
-**CI workflows:**
-- `.github/workflows/scrape.yml` — weekly cron (`Mon 06:00 UTC`): scrape → spider → API → feeds → commit.
-- `.github/workflows/sync-nav.yml` — drift gate.
-- `.github/workflows/sync-footer.yml` — drift gate.
-- `.github/workflows/html-validate.yml` — HTML validation.
-- `.github/workflows/lighthouse.yml` — perf budget.
-- `.github/workflows/links.yml` — broken-link sweep (`lychee`).
-
-**Service worker:**
-- Location: `/sw.js` (root scope).
-- Triggers: registered by every page via inline `<script>`. (`index.html:27` and equivalents)
+**`scripts/normalize-csv.py` (prebuild):**
+- Location: `scripts/normalize-csv.py`, invoked by `package.json`'s `prebuild` npm-lifecycle hook
+- Triggers: runs automatically before every `astro build` (via `pnpm build`)
+- Responsibilities: sole writer of `data/wargov.json` + `data/wargov-shard-N.json` from `uap-data.csv`; the `Card.astro`-vs-`render_card_html()` HTML parity is a LOCKED build-time contract (D-10)
 
 ## Architectural Constraints
 
-- **Threading:** Build scripts are single-threaded synchronous Python; `scripts/check-sources.py` is the only multi-threaded build-time script (uses `concurrent.futures.ThreadPoolExecutor`).
-- **Global state:** Module-level constants in `scripts/templates/*.py` (PINNED, SITE_PAGES, MORE, STORIES, I18N, SHARED_CSS, SHARED_JS, LIGHTBOX_*) are read by every builder at import. Mutating any of them propagates to the next full rebuild.
-- **Circular imports:** `scripts/templates/head.py` lazy-imports `_site_template` to avoid a circular dependency during the in-progress refactor. See note in `scripts/templates/head.py:18-22`.
-- **Per-archive isolation at runtime:** No archive page loads CSS or JS from any other archive's folder. The only cross-archive runtime resources are root-level vendor scripts (`/assets/vendor/lunr/lunr.min.js`, `/assets/vendor/leaflet/`, `/assets/vendor/hotkeys.js`) referenced by root utility pages only.
-- **SW scope:** `sw.js` is at repository root (scope = `/`); only the root and root-utility pages (`search.html`, `timeline.html`, `map.html`, `about.html`, `donate.html`, `glossary.html`, `stats.html`, `foia.html`, `compare.html`, `whatsnew.html`) currently register it. Per-archive pages do not register the SW themselves — they inherit it once the user has visited any root page.
-- **Forbidden:** Touching `uap-release001.csv` (locked by CLAUDE.md §11); force-pushing main; introducing a JS framework or external CSS file referenced from a mirror page.
+- **Threading:** single-threaded build (Node.js, Astro's static build pipeline); no worker threads in the site build. `workers/akamai-spike/` is a SEPARATE Cloudflare Worker experiment (Phase 5 scrape-automation spike), not part of the site's request path.
+- **Global state:** none at runtime — every page is static HTML plus isolated `is:inline` scripts. The closest thing to global state is the Workbox service worker's Cache Storage (`src/sw.ts`, cache-name-prefixed `realufo-v<sha>`) and the `?q=`/`?page=` URL params.
+- **No client:* hydration anywhere.** This is a hard invariant (D-21..D-23) carried over from the pre-migration site: no React/Vue/Svelte islands, ever. Every interactive behavior is a hand-written `is:inline` script.
+- **Two parallel data copies for wargov shards:** `data/wargov-shard-N.json` (repo root — read by Astro's build-time `import.meta.glob`) and `public/data/wargov-shard-N.json` (mirrored — becomes `dist/data/wargov-shard-N.json`, fetched by the browser at runtime). Editing one without the other desyncs build-time stats from runtime card content — `scripts/normalize-csv.py` is the only script that should write either.
+- **`public/data/` is a partial, stale mirror for non-wargov archives.** It contains `aaro.json`, `nasa.json`, `nara.json`, `nz.json`, `uruguay.json` (used at runtime the same way as wargov's shards would be, if those archives ever shard) but is MISSING `argentina.json`, `brazil.json`, `canada.json`, `chile.json`, `geipan.json`, `italy.json`, `peru.json`, `spain.json`, `uk.json` — those 9 dormant archives' catalog pages are legacy static HTML (not Astro + Content Collections), so they never needed a `public/data/` mirror.
+- **Root-level per-archive directories (`aaro/`, `nasa/`, `nara/`, `nz/`, `uruguay/`, `brazil/`, `chile/`, `geipan/`, `uk/`, `argentina/`, `canada/`, `italy/`, `peru/`, `spain/`) are 100% gitignored local caches** — `git ls-files <dir>/` returns zero for every one of them (verified 2026-07-11). They hold only `pdfs/`, `videos/`, `.cache/` download-cache subdirectories populated by `scripts/dl-<slug>.sh`. This CONTRADICTS the CLAUDE.md §5 storage-layout diagram, which still shows these as if they hold the archive's HTML/assets — that content moved to `legacy/<slug>/` in the Phase 04.1 reorg (commits `6504f42`, `c9fe513`, `50f8596`). Treat CLAUDE.md §5 as aspirational/historical for these paths; treat this document + `legacy/` as ground truth.
+- **Legacy-extraction build failure is intentional, not a bug.** `extractMain()` throws (no `<body>` fallback) if a `legacy/*.html` file doesn't match any cascade selector — this is a deliberate "fail the build, don't silently double-render chrome" invariant (B-3). Adding a new story/site-page whose legacy source has an unusual DOM shape requires extending the `CASCADE` array in `src/scripts/extractLegacyBody.ts`, not working around it.
 
 ## Anti-Patterns
 
-### Reading file lists with `os.listdir` instead of `git ls-files`
+### Do not add `client:*` directives
 
-**What happens:** A builder picks up a file present on disk but gitignored, marks it LOCAL, then the Download button 404s on the deployed site.
-**Why it's wrong:** PDFs and videos live in GitHub Releases (`pdfs-v1`, `videos-v1`, `pdfs-v2`, `wargov-r02-v1`) and are gitignored from the source tree.
-**Do this instead:** Use the `git_tracked(rel_dir)` helper present in every builder. See `scripts/build-aaro.py:31-44` for the canonical implementation.
+**What happens:** Astro components support `client:load`/`client:visible`/etc. hydration directives.
+**Why it's wrong:** The project's offline-first + JS-disabled-viewing goals (CLAUDE.md §1, §7) require every page to be fully readable/navigable with JavaScript OFF. Hydration islands reintroduce a JS-required code path and break the `tests/js-off.spec.ts` gate.
+**Do this instead:** Add a new named function to `src/scripts/invariants.ts` (or a page-local `is:inline` script for page-specific behavior) and wire it defensively (`if (!el) return;`, idempotent `dataset.wired` guards — see `Nav.astro`'s dropdown controller for the reference pattern).
 
-### Single-`<source>` `<video>` for assets with both local + remote
+### Do not add a `<body>` fallback to `extractMain()`
 
-**What happens:** Lightbox plays only one path; if local is missing on deploy, video silently fails.
-**Why it's wrong:** Offline-first contract is broken; CLAUDE.md §11 explicitly forbids it.
-**Do this instead:** Emit `<video><source src="./local.mp4"><source src="https://github.com/.../releases/.../local.mp4"></video>`. See `scripts/templates/shared.py:386-389`.
+**What happens:** A future edit might be tempted to add a final `<body>...</body>` regex to `CASCADE` in `src/scripts/extractLegacyBody.ts` so unrecognized legacy files "just work" instead of failing the build.
+**Why it's wrong:** `<body>` includes the legacy page's own `<header>`/`<nav>`/`<footer>`/`<style>`/scanlines chrome, which would double-render alongside the Astro-rendered `Nav`/`Footer`/scanlines (the B-3 defect this design explicitly prevents).
+**Do this instead:** Audit the new file's DOM shape, add a `filePath`-guarded cascade entry (see the `map.html`/`timeline.html` entries for the pattern of anchoring on an unambiguous in-file marker), and update `.planning/phases/04.1-legacy-reorg-stories-site-pages-nav-surface/04.1-legacy-html-structure-audit.md`.
 
-### Inline `<style>` blocks placed inside `<body>`
+### Do not mutate CSV or add text transforms to normalisers
 
-**What happens:** html-validate's `element-permitted-content` rule rejects the page.
-**Why it's wrong:** Modern browsers tolerate this but the validator does not.
-**Do this instead:** Run `python3 scripts/fix-body-style.py` to move body-level `<style>` into `<head>`. See `scripts/fix-body-style.py:1-20`.
+**What happens:** A normaliser (`scripts/normalize-csv.py`, `scripts/normalize-*.py`) or the Zod schema (`src/content.config.ts`) gets a `.transform()`/`.strip()`/smart-quote rewrite "cleanup" pass on a text field.
+**Why it's wrong:** CLAUDE.md §9 requires verbatim official text. Any transform on `ti`, `de`, `Title`, `Description Blurb`, etc. silently breaks the fidelity gate (`tests/fidelity-samples.json` + `scripts/verify-fidelity.py`, 115 byte-exact samples).
+**Do this instead:** Do only `html.escape()`-equivalent structural encoding at RENDER time (already done in `render_card_html()`), never at normalisation time. `uap-release001.csv` / `uap-data.csv` are read-only inputs — see CLAUDE.md §11 don'ts.
 
-### Hand-edited `<nav>` or `<footer>` in any HTML page
+### Do not point a Download/Open button at a bare local path that might be empty
 
-**What happens:** `sync-nav.yml` / `sync-footer.yml` CI gate fails on the next push.
-**Why it's wrong:** Nav and footer are single-source-of-truth. Drift breaks the cross-archive navigation contract.
-**Do this instead:** Edit `scripts/templates/nav.py` (or `footer.py`) and run `python3 scripts/sync-nav.py` / `python3 scripts/sync-footer.py` to rewrite every page.
-
-### Caching every fetch (including 404s) in the service worker
-
-**What happens:** A transient pre-deploy 404 gets pinned in the user's cache; the page stays broken even after the file lands.
-**Why it's wrong:** Previously caused stale-404 reports; explicitly fixed in commit `dcbc0d7`.
-**Do this instead:** Only cache `res.ok` responses. See `sw.js:81-83` and the `// CRITICAL:` comment block above it.
-
-### Touching `index.html` CSS or HTML structure from `scripts/build-wargov.py`
-
-**What happens:** The hand-tuned war.gov landing page gets clobbered.
-**Why it's wrong:** `build-wargov.py` is a **splice-only** script — it ONLY rewrites the inline `<script id="archive-manifest">` JSON body.
-**Do this instead:** Edit `index.html` by hand for structural changes. Edit only `uap-data.csv` for content. See `scripts/build-wargov.py:188-199`.
+**What happens:** A card template renders `<a href={asset.l}>` unconditionally.
+**Why it's wrong:** CLAUDE.md §4.3 — if `a.local` is empty on the deployed site, the button must fall back to the GitHub Releases URL (`a.u` / `a.url`), never to an empty/bare local path that 404s or serves an HTML error page.
+**Do this instead:** Follow the existing `CatalogCard.astro` / `Card.astro` button logic: prefer `local`, fall back to `url` (release URL), never emit a button with no resolvable target.
 
 ## Error Handling
 
-**Strategy:** Defensive degradation. Every fetch path has a fallback; every image / video tag has an `onerror` swap; every PDF iframe has a "open in new tab" link; every release-URL lookup falls back to the original source URL.
+**Strategy:** Fail loudly at BUILD time for data/content defects (missing
+collection entry, Zod validation error, `extractMain()` no-match, Nav.astro's
+featured-story `{1..8}` gate); fail SILENTLY/gracefully at RUNTIME for
+progressive-enhancement JS (defensive `if (!el) return`, `.catch(() => {})`
+on the service-worker registration call).
 
 **Patterns:**
-- Downloaders: `set -uo pipefail` (no `-e` — failures are isolated per file); `curl --fail --max-time` then Wayback `https://web.archive.org/web/<ts>id_/<url>` fallback; `rm -f` partials.
-- Builders: `try ... except subprocess.CalledProcessError, FileNotFoundError` around `git ls-files` (falls back to `os.listdir`). See `scripts/build-aaro.py:40-44`.
-- Service worker install: `Promise.all(SHELL.map(url => cache.add(url).catch(() => {})))` — one 404 doesn't break the entire install. See `sw.js:47`.
-- Service worker navigation: `fetch(req).then(...).catch(() => caches.match(req).then(hit => hit || caches.match('/404.html')))`. See `sw.js:79-88`.
-- Client-side image fallback: `<img onerror="this.onerror=null;this.src='${esc(a.u||a.url)}';">`. See `scripts/templates/shared.py:384`.
-- Client-side video fallback: `<video><source src="./local.mp4"><source src="release-url.mp4"></video>`. See `scripts/templates/shared.py:389`.
-- CSP: `default-src 'self'`; only `umami.is` for analytics, `fonts.googleapis.com`/`fonts.gstatic.com` for fonts, `web.archive.org` for source-link clicks. See `index.html:5`.
+- `src/pages/index.astro` throws with a remediation hint (`run 'pnpm prebuild'...`) if `getEntry('wargov', 'v1')` returns undefined.
+- `Nav.astro` throws a descriptive `Error` at build time if the featured-stories invariant (`FEATURED_STORIES.length === 8`, unique `order` 1..8) is violated — see `src/components/Nav.astro:58-64`.
+- `extractMain()` throws with a remediation pointer to the structure-audit doc + `CASCADE` array location.
+- Runtime service-worker registration is wrapped in `.catch(function () {})` — a registration failure never blocks page interactivity.
+- Postbuild helper scripts (`build-dir-index.py`, `rewrite-dist-legacy-links.py`) are invoked with `|| echo "...WARN...(non-fatal)"` in `copy-legacy-archives.sh` — they degrade gracefully rather than failing the whole build.
 
 ## Cross-Cutting Concerns
 
-**Logging:** None server-side (no server). Build scripts `print()` to stdout. Client side uses `console` sparingly; analytics via Umami (`https://cloud.umami.is/script.js`, site ID baked into pages).
+**Logging:** none in production (no client-side logging/telemetry beyond
+Umami analytics, `<script defer src="https://cloud.umami.is/script.js">` in
+`BaseHead.astro`). Build-time scripts print to stdout/stderr (bash `echo`,
+Python `print`).
 
-**Validation:**
-- `scripts/validate-manifests.py` — schema-checks every inline manifest in CI.
-- `scripts/check-sources.py` — HEAD-pings every external URL, emits `dead-links.{json,md}`.
-- `scripts/sync-nav.py --check` + `scripts/sync-footer.py --check` — block PRs that drift from canonical nav/footer.
-- `.htmlvalidate.json` — html-validate config.
-- `.lycheeignore` — link-checker ignore list.
-- `.lighthouserc.json` — Lighthouse CI budget.
+**Validation:** Zod schemas in `src/content.config.ts` are the sole runtime
+validation gate for content data (`.strict()` on asset-leaf schemas catches
+unexpected fields as a build failure). CI-side gates (`scripts/verify-*.{py,sh}`)
+enforce redirect-URL parity, Lighthouse budgets, and the Python-retirement
+invariant.
 
-**Authentication:** None — the site has no auth surface. Public-domain content, no user accounts, no comments, no forms beyond mailto links.
-
-**Internationalization:** Single shared `I18N` dict at `scripts/templates/i18n.py` covers 6 languages (en/fr/es/pt/zh/ja). Inlined into every page; runtime applies via `localStorage.realufo_lang` and `data-i18n` attributes.
-
-**Accessibility:** `scripts/fix-a11y-sweep.py` applies idempotent regex fixes (role attributes on decorative divs, aria-label on `<nav class="toc">`, `<nav class="pagination">`).
-
-**Asset / size discipline:**
-- `bundles/*.zip` and per-archive `pdfs/` + `videos/` are gitignored — files live in GitHub Release tags (`pdfs-v1`, `videos-v1`, `pdfs-v2`, `wargov-r02-v1`).
-- Single files >100 MB are hard-banned (GitHub limit).
-- Images stay tracked (small, used for thumbnails and slideshow).
+**Authentication:** none — this is a fully public, read-only static archive.
+No login, no admin surface (the runtime service worker explicitly
+NetworkOnly-denylists a hypothetical `/admin` path defensively, per D-21 SW-05,
+even though no such route exists today).
 
 ---
 
-*Architecture analysis: 2026-05-25*
+*Architecture analysis: 2026-07-11*
