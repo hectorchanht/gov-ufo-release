@@ -973,6 +973,10 @@
       {
         "file": "data/wargov-shard-6.json",
         "index": 6
+      },
+      {
+        "file": "data/wargov-shard-7.json",
+        "index": 7
       }
     ],
     "slug": "wargov"
