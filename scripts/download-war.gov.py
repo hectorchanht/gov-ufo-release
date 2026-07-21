@@ -34,9 +34,10 @@ ROOT = Path(__file__).resolve().parent.parent   # repo root
 SLIDES_DIR    = ROOT / "slideshow"
 SLIDES_2_DIR  = ROOT / "slideshow-2"             # Release 02 carousel images
 SLIDES_3_DIR  = ROOT / "slideshow-3"             # Release 03 carousel images
+SLIDES_4_DIR  = ROOT / "slideshow-4"             # Release 04 carousel images
 BUNDLES_DIR   = ROOT / "bundles"
 ASSETS_DIR    = ROOT / "assets"
-for d in (SLIDES_DIR, SLIDES_2_DIR, SLIDES_3_DIR, BUNDLES_DIR, ASSETS_DIR):
+for d in (SLIDES_DIR, SLIDES_2_DIR, SLIDES_3_DIR, SLIDES_4_DIR, BUNDLES_DIR, ASSETS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 HEADERS = {
@@ -149,6 +150,47 @@ SLIDES_3 = [
     "ICA-UAP-D001_Analysis_Colorado-Springs-UAP-Incident.jpg",
 ]
 
+# Release 04 (2026-07-10) — fourth tranche under PURSUE. 40 records
+# (14 PDF, 3 IMG, 19 VID, 4 AUD). Carousel imagery lives under a
+# /071026/Slideshow/ path; documents are served as individual PDFs (no
+# doc-bundle zip) and a ~1.55 GB Cloudfront video archive holds the 23
+# DOD_*.mp4 assets. Filenames verbatim from the live www.war.gov/UFO/ markup.
+SLIDESHOW_4_BASE = "https://www.war.gov/portals/1/Interactive/2026/UFO/071026/Slideshow/"
+SLIDES_4 = [
+    "DOE-UAP-D004_Los-Alamos-Conference-on-Aerial-Phenomena_1949.jpg",
+    "DOW-UAP-D094_Analysis-of-Flying-Object-Incidents-in-the-US_1949.jpg",
+    "DOW-UAP-D097_Project-Sign-Progress-Report_1948.jpg",
+    "DOW-UAP-PR104_Unresolved-UAP-Report_Yellow-Sea_2025.jpg",
+    "DOW-UAP-PR105_Unresolved-UAP-Report_East-China-Sea_2025.jpg",
+    "DOW-UAP-PR113_Unresolved-UAP-Report_Western-US_1996.jpg",
+    "DOW-UAP-PR115_Unresolved-UAP-Report_Gulf-of-America_2019.jpg",
+    "NASA-UAP-D030_STS-80-Unidentified-Object-Image1_1996.jpg",
+    "NASA-UAP-D031_STS-80-Unidentified-Object-Image2_1996.jpg",
+    "NASA-UAP-D032_STS-80-Unidentified-Object-Image3_1996.jpg",
+]
+
+# Release 04 individual document PDFs (14). Served directly under
+# /medialink/ufo/071026/release_04/documents/ (no bundle zip). Fetched into
+# BUNDLES_DIR/release_04_documents/ for the R2 pdfs/wargov/ mirror.
+DOCS_4_BASE = "https://www.war.gov/medialink/ufo/071026/release_04/documents/"
+DOCS_4_DIR  = BUNDLES_DIR / "release_04_documents"
+DOCS_4 = [
+    "DOE-UAP-D004_Los-Alamos-Conference-on-Aerial-Phenomena_1949.pdf",
+    "DOW-UAP-D094_Analysis-of-Flying-Object-Incidents-in-the-US_1949.pdf",
+    "DOW-UAP-D097_Project-Sign-Progress-Report_1948.pdf",
+    "CIA-UAP-D020_Memorandum-on-Unconventional-Aircraft-Sightings_1955.pdf",
+    "CIA-UAP-D021_Analysis-of-Unconventional-Aircraft-Sightings_1955.pdf",
+    "DOE-UAP-D005_Pantex-Unidentified-Object-Incident-Report_2015.pdf",
+    "DOW-UAP-D089_Range-Fouler-Debrief_Eastern-US_2020.pdf",
+    "DOW-UAP-D090_Range-Fouler-Debrief_Eastern-US_2019.pdf",
+    "DOW-UAP-D091_Range-Fouler-Debrief_Atlantic-Ocean_2020.pdf",
+    "DOW-UAP-D092_DAF-Committee-to-Review-Project-Bluebook_1966-1967.pdf",
+    "DOW-UAP-D093_Analysis-of-Flying-Object-Incidents-in-the-US_1948.pdf",
+    "DOW-UAP-D095_Joint-US-Canadian-Aviation-Projects-and-UFO-Sighting-Reports_1954-1955.pdf",
+    "DOW-UAP-D096_Correspondence-Relating-to-Project-Blue-Book_1955.pdf",
+    "FBI-UAP-D014_Correspondence-Relating-to-UFO-Sightings_1967_1974.pdf",
+]
+
 # Master manifest. As of Release 02 (5/22/26), war.gov serves a single
 # combined CSV (uap-data.csv) that includes both Release 01 and 02 rows.
 # The legacy /uap-release001.csv is still served verbatim — we keep both.
@@ -174,6 +216,10 @@ BUNDLES = [
      "release_03_documents.zip"),
     ("https://d34w7g4gy10iej.cloudfront.net/release_03/uap_videos_061226.zip",
      "uap_videos_061226.zip"),
+    # Release 04 (7/10/26) — 14 individual PDFs (see DOCS_4) + a ~1.55 GB
+    # cloudfront video archive (23 DOD_*.mp4). URL verbatim from war.gov/UFO/.
+    ("https://d34w7g4gy10iej.cloudfront.net/release_04/uap_release04_videos_071026.zip",
+     "uap_release04_videos_071026.zip"),
 ]
 
 
@@ -191,6 +237,17 @@ def main():
     ok = sum(fetch(SLIDESHOW_3_BASE + f.replace(" ", "%20"), SLIDES_3_DIR / f)
              for f in SLIDES_3)
     print(f"  ({ok}/{len(SLIDES_3)} ok)")
+
+    print("\n=== Slideshow images — Release 04 (10) ===")
+    ok = sum(fetch(SLIDESHOW_4_BASE + f.replace(" ", "%20"), SLIDES_4_DIR / f)
+             for f in SLIDES_4)
+    print(f"  ({ok}/{len(SLIDES_4)} ok)")
+
+    print("\n=== Release 04 document PDFs (14) ===")
+    DOCS_4_DIR.mkdir(parents=True, exist_ok=True)
+    ok = sum(fetch(DOCS_4_BASE + f.replace(" ", "%20"), DOCS_4_DIR / f)
+             for f in DOCS_4)
+    print(f"  ({ok}/{len(DOCS_4)} ok)")
 
     print("\n=== Site chrome (logos) ===")
     for url, name in LOGOS:
