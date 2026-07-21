@@ -120,30 +120,42 @@ const heroSlides = [
     alt: 'DOW · R03 · U.S. Army flying-saucer study, 1949',
     caption: 'DOW · R03 · U.S. Army flying-saucer study, 1949',
   },
+  {
+    id: 'DOW-PR115',
+    src: '/slideshow-4/DOW-UAP-PR115_Unresolved-UAP-Report_Gulf-of-America_2019.jpg',
+    alt: 'DOW · R04 · Unresolved UAP report, Gulf of America, 2019',
+    caption: 'DOW · R04 · Unresolved UAP report, Gulf of America, 2019',
+  },
+  {
+    id: 'NASA-D030',
+    src: '/slideshow-4/NASA-UAP-D030_STS-80-Unidentified-Object-Image1_1996.jpg',
+    alt: 'NASA · R04 · STS-80 unidentified object, 1996',
+    caption: 'NASA · R04 · STS-80 unidentified object, 1996',
+  },
 ];
 
 // Page meta — title + description verbatim from legacy index.html OG block.
 const title = 'PURSUE — Presidential Unsealing and Reporting System for UAP Encounters | U.S. Department of War';
-const description = "Official U.S. Department of War / DoD release of declassified UAP files. Release 01 (May 8, 2026) + Release 02 (May 22, 2026) + Release 03 (June 12, 2026) — 294-record archive, 85 DVIDS bundle videos, 37 slideshow highlights.";
+const description = "Official U.S. Department of War / DoD release of declassified UAP files. Release 01 (May 8, 2026) + Release 02 (May 22, 2026) + Release 03 (June 12, 2026) + Release 04 (July 10, 2026) — 334-record archive, 108 DVIDS videos, 47 slideshow highlights.";
 
 // Total record count for the stats grid — derived from the rows array on
 // the primary entry + the shards manifest (each shard is ~50 cards).
 // We DON'T sum shard JSON sizes — we just count rows + (shards.length * 50)
 // as an estimate; Plan 03-06 may tighten this via the prebuild stats hook.
 const totalRecords = shardCardCount > 0
-  ? rows.length + shardCardCount       // exact: 50 primary + shard cards = 294 at R03
+  ? rows.length + shardCardCount       // exact: 50 primary + shard cards = 334 at R04
   : rows.length + shards.length * 50;  // upper-bound fallback on a fresh clone
 
 // JSON-LD structured data — port verbatim from legacy index.html @ line 29.
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Dataset',
-  name: 'PURSUE — War.gov UAP Releases 01 + 02 + 03',
+  name: 'PURSUE — War.gov UAP Releases 01 + 02 + 03 + 04',
   description:
-    'Department of War (PURSUE) Releases 01 (May 8, 2026), 02 (May 22, 2026), and 03 (June 12, 2026) — 294 declassified UAP / UFO records: documents, images, audio, and 85 DVIDS videos. Offline-archived from www.war.gov/UFO/.',
+    'Department of War (PURSUE) Releases 01 (May 8, 2026), 02 (May 22, 2026), 03 (June 12, 2026), and 04 (July 10, 2026) — 334 declassified UAP / UFO records: documents, images, audio, and 108 DVIDS videos. Offline-archived from www.war.gov/UFO/.',
   url: 'https://realufo.org/',
   sameAs: 'https://www.war.gov/UFO/',
-  keywords: ['UAP', 'UFO', 'PURSUE', 'Department of War', 'Release 01', 'Release 02', 'Release 03', 'declassified'],
+  keywords: ['UAP', 'UFO', 'PURSUE', 'Department of War', 'Release 01', 'Release 02', 'Release 03', 'Release 04', 'declassified'],
   creator: { '@type': 'GovernmentOrganization', name: 'U.S. Department of War' },
   publisher: { '@type': 'Organization', name: 'realufo.org', url: 'https://realufo.org/' },
   license: 'https://www.copyright.gov/title17/92chap1.html#105',
@@ -195,7 +207,7 @@ const jsonLd = {
       <div class="coords">38°52′15″N, 77°03′18″W &middot; THE PENTAGON, ARLINGTON, VIRGINIA</div>
       <div class="classified-stamp">
         DECLASSIFIED
-        <small>RELEASES 01 + 02 + 03 / 2026</small>
+        <small>RELEASES 01 + 02 + 03 + 04 / 2026</small>
       </div>
       <h1 class="hero-title">
         Presidential Unsealing and Reporting System for UAP Encounters <span class="acronym">(PURSUE)</span>
@@ -206,7 +218,7 @@ const jsonLd = {
         <a href="https://www.war.gov/UFO/" target="_blank" rel="noopener">Source: war.gov/UFO/ ↗</a>
       </p>
 
-      <HeroCarousel slides={heroSlides} label="Featured imagery from Releases 01 + 02 + 03" />
+      <HeroCarousel slides={heroSlides} label="Featured imagery from Releases 01 + 02 + 03 + 04" />
     </div>
   </section>
 
@@ -251,8 +263,18 @@ const jsonLd = {
           </p>
         </article>
         <article class="head-card">
+          <div class="hc-tag">Release 04</div>
+          <h3>July 10, 2026 — Fourth tranche</h3>
+          <p>
+            40 records: NASA STS-80 Space Shuttle object imagery and Apollo 14 / 17 crew
+            debriefing audio, DOW "Range Fouler" debriefs and 19 unresolved UAP report videos
+            (Yellow Sea, East China Sea, Gulf of America, Atlantic), plus DOE Los Alamos,
+            Project Sign, and Blue Book review documents — 1948–2025.
+          </p>
+        </article>
+        <article class="head-card">
           <div class="hc-tag">Archive</div>
-          <h3>294 unresolved records</h3>
+          <h3>334 unresolved records</h3>
           <p>
             Every release is unresolved — the government is unable to make a definitive
             determination on the nature of the observed phenomena. Private-sector analysis is
@@ -333,6 +355,7 @@ const jsonLd = {
               <option value="01">Release 01 (May 8, 2026)</option>
               <option value="02">Release 02 (May 22, 2026)</option>
               <option value="03">Release 03 (June 12, 2026)</option>
+              <option value="04">Release 04 (July 10, 2026)</option>
             </select>
           </label>
           <label>Per page:
