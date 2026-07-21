@@ -75,3 +75,6 @@ playwright-report/
 .env
 .dev.vars
 *.pre-bounce.md
+
+# Claude Code local agent state / worktrees
+.claude/
