@@ -207,7 +207,11 @@ fi
 # by normalize-csv.py's _hydrate_thumb() (2026-05-29 — VID hydration
 # patch). Without copying, the hydrated `Modal Image` paths
 # `/slideshow-2/*.jpg` would 404 on the deployed site.
-for dir in assets slideshow slideshow-2; do
+#
+# slideshow-3/ (R03) + slideshow-4/ (R04) added the same way — the index
+# hero carousel + hydrated VID thumbnails reference `/slideshow-3/*.jpg`
+# and `/slideshow-4/*.jpg`; without this copy they 404 on deploy.
+for dir in assets slideshow slideshow-2 slideshow-3 slideshow-4; do
   if [ -d "$dir" ]; then
     while IFS= read -r f; do
       copy_one "$f"
